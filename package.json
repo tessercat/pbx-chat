@@ -1,21 +1,21 @@
 {
-  "name": "pbx-verto",
+  "name": "pbx-chat",
   "version": "0.0.0",
-  "description": "PBX verto client",
+  "description": "PBX chat client",
   "main": "index.js",
   "scripts": {
     "build": "webpack"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tessercat/pbx-verto.git"
+    "url": "git+https://github.com/tessercat/pbx-chat.git"
   },
   "author": "Peter Christensen",
   "license": "CC-BY-NC-ND-4.0",
   "bugs": {
-    "url": "https://github.com/tessercat/pbx-verto/issues"
+    "url": "https://github.com/tessercat/pbx-chat/issues"
   },
-  "homepage": "https://github.com/tessercat/pbx-verto#readme",
+  "homepage": "https://github.com/tessercat/pbx-chat#readme",
   "devDependencies": {
     "clean-webpack-plugin": "^3.0.0",
     "compression-webpack-plugin": "^4.0.0",

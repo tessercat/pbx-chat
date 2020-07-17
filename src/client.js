@@ -20,7 +20,7 @@ export default class Client {
   connect() {
     if (!this.ws) {
       this.ws = new WebSocket(
-        `wss://${location.host}${location.pathname}/client`
+        `wss://${location.host}${location.pathname}/clients`
       );
       this.setHandlers();
       this.keepaliveId = setInterval(() => {
@@ -38,7 +38,7 @@ export default class Client {
   setHandlers() {
     this.ws.on('open', (event) => {
       this.log('open', event);
-      const params = {'login': 'verto', 'passwd': 'woof'};
+      const params = {'login': 'chat', 'passwd': 'woof'};
       this.ws.call('login', params).then(result => {
         this.log('login', result);
       }).catch(error => {
