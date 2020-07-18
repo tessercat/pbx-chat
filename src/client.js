@@ -38,7 +38,7 @@ export default class Client {
   setHandlers() {
     this.ws.on('open', (event) => {
       this.log('open', event);
-      const params = {'login': 'chat', 'passwd': 'woof'};
+      const params = {'login': 'verto', 'passwd': 'woof'};
       this.ws.call('login', params).then(result => {
         this.log('login', result);
       }).catch(error => {
