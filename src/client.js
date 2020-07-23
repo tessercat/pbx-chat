@@ -23,8 +23,9 @@ export default class Client {
 
   constructor() {
     this.view = new View(this);
-    this.clientId = this.view.clientId;
     this.channelId = this.view.channelId;
+    this.clientId = this.view.clientId;
+    this.password = this.view.password;
     this.ws = new MyWebSocket();
     this.currentRequestId = 0;
     this.authing = false;
@@ -138,10 +139,13 @@ export default class Client {
     const onSuccess = () => {
       this.authing = false;
     };
+    const onError = () => {
+      this.disconnect();
+    };
     this.send('login', {
       login: this.clientId,
-      passwd: this.clientId,
-    }, onSuccess);
+      passwd: this.password,
+    }, onSuccess, onError);
   }
 
   subscribe(eventChannel) {

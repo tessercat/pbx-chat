@@ -7,7 +7,8 @@
 export default class View {
   constructor(peer) {
     this.peer = peer;
-    this.clientId = document.querySelector("#clientId").value;
     this.channelId = document.querySelector("#channelId").value;
+    this.clientId = document.querySelector("#clientId").value;
+    this.password = document.querySelector("#password").value;
   }
 }
