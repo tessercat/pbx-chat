@@ -1,10 +1,10 @@
-# PBX verto client
+# PBX client
 
-FreeSWITCH verto client
+FreeSWITCH Verto client
 for the PBX project.
 
 To develop,
-clone this repo to `/opt/pbx/verto`
+clone this repo to `/opt/pbx/client`
 as the `pbx-web` user
 and init the npm project.
 Run `npm run-script build`

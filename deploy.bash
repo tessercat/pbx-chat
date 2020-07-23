@@ -1,5 +1,5 @@
-APP=verto
-FROM=/opt/pbx/$APP/dist
+APP=clients
+FROM=/opt/pbx/client/dist
 NGINX_STATIC=/opt/pbx/static/$APP/js
 APP_STATIC=/opt/pbx/web/$APP/static/$APP/js
 PROJECT_STATIC=/opt/pbx/web/static/$APP/js
