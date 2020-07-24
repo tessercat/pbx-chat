@@ -2,7 +2,7 @@
  *  Copyright (c) 2020 Peter Christensen. All Rights Reserved.
  *  CC BY-NC-ND 4.0.
  */
-import {debug, info} from './logger.js';
+import {info} from './logger.js';
 
 export default class MyWebSocket {
 
@@ -86,7 +86,6 @@ export default class MyWebSocket {
   }
 
   send(message) {
-    debug('sending', message);
     this.socket.send(JSON.stringify(message));
   }
 }

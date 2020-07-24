@@ -4,10 +4,12 @@
  */
 import View from './view.js';
 import MyWebSocket from './websocket.js';
-import {debug, error} from './logger.js';
+import {debug, info, error} from './logger.js';
 
-const CODES = {
+const CONST = {
   authRequired: -32000,
+  keepaliveInterval: 45000,
+  requestExpiry: 30000,
 }
 
 class Request {
@@ -19,20 +21,27 @@ class Request {
   }
 }
 
+class ResponseCallbacks {
+  constructor(onSuccess, onError) {
+    this.sent = new Date();
+    this.onSuccess = onSuccess;
+    this.onError = onError;
+  }
+}
+
 export default class Client {
 
   constructor() {
-    this.view = new View(this);
+    this.view = new View(this); // Init callbacks instead.
     this.channelId = this.view.channelId;
     this.clientId = this.view.clientId;
     this.password = this.view.password;
     this.ws = new MyWebSocket();
     this.currentRequestId = 0;
     this.authing = false;
-    this.callbacks = {};
+    this.responseCallbacks = {};
     this.subscriptions = {};
     this.keepaliveTimer = null;
-    this.keepaliveInterval = 45000;
   }
 
   // WebSocket methods/handlers.
@@ -46,11 +55,12 @@ export default class Client {
   }
 
   connectHandler() {
+    info('Connected');
     clearInterval(this.keepaliveTimer);
-    // this.clearCallbacks();
+    this.cleanResponseCallbacks();
     this.keepaliveTimer = setInterval(() => {
       this.ping();
-    }, this.keepaliveInterval);
+    }, CONST.keepaliveInterval);
     this.authing = false;
     this.send('login');
   }
@@ -61,40 +71,57 @@ export default class Client {
     );
   }
 
-  disconnectHandler(event) {
+  disconnectHandler() {
     clearInterval(this.keepaliveTimer);
-    // this.clearCallbacks();
-    debug('disconnected', event);
+    this.cleanResponseCallbacks();
+    info('Disconnected');
   }
 
   messageHandler(event) {
     try {
       let message = JSON.parse(event.data);
-      debug('received', message);
-      if (this.callbacks[message.id]) {
+      debug('Received', message);
+      if (this.responseCallbacks[message.id]) {
         this.responseHandler(message);
       } else {
         this.eventHandler(message);
       }
-    } catch (error) {
-      console.error(error);
-      alert(error.message);
+    } catch (err) {
+      error('Error handling message', err);
+      alert(err.message);
     }
+  }
+
+  // JSON-RPC request/response methods/handlers.
+
+  send(method, params, onSuccess, onError) {
+    this.currentRequestId += 1;
+    const request = new Request(
+      method,
+      params,
+      this.clientId,
+      this.currentRequestId
+    );
+    this.responseCallbacks[request.id] = new ResponseCallbacks(
+      onSuccess, onError
+    );
+    debug('Sending', request);
+    this.ws.send(request);
   }
 
   responseHandler(message) {
     if (message.result) {
-      const onSuccess = this.callbacks[message.id].onSuccess;
+      const onSuccess = this.responseCallbacks[message.id].onSuccess;
       if (onSuccess) {
         onSuccess(message);
       }
     } else {
       if (message.error) {
         const code = parseInt(message.error.code);
-        if (!this.authing && code === CODES.authRequired) {
+        if (!this.authing && code === CONST.authRequired) {
           this.login();
         } else {
-          const onError = this.callbacks[message.id].onError;
+          const onError = this.responseCallbacks[message.id].onError;
           if (onError) {
             onError(message);
           }
@@ -103,7 +130,7 @@ export default class Client {
         error('Bad response', message);
       }
     }
-    delete this.callbacks[message.id];
+    delete this.responseCallbacks[message.id];
   }
 
   eventHandler(event) {
@@ -112,35 +139,38 @@ export default class Client {
         this.subscribe(this.channelId);
         break;
       default:
-        debug('unhandled event', event);
+        error('Unhandled event', event);
         break;
     }
   }
 
-  // JSON-RPC API.
-
-  send(method, params = {}, onSuccess = null, onError = null) {
-    this.currentRequestId += 1;
-    const request = new Request(
-      method,
-      params,
-      this.clientId,
-      this.currentRequestId
-    );
-    this.callbacks[request.id] = {
-      onSuccess: onSuccess,
-      onError: onError,
-    };
-    this.ws.send(request);
+  cleanResponseCallbacks() {
+    const expired = [];
+    const now = new Date().setSeconds(-30);
+    debug('Cleaning up expired response callbacks');
+    for (const requestId in this.responseCallbacks) {
+      const diff = now - this.responseCallbacks[requestId].sent;
+      if (diff > CONST.requestExpiry) {
+        expired.push(requestId);
+      }
+    }
+    for (const requestId of expired) {
+      delete this.responseCallbacks[requestId];
+      error('Deleted expired callbacks for request', requestId);
+    }
   }
+
+  // Verto API.
 
   login() {
     this.authing = true;
     const onSuccess = () => {
+      info('Logged in');
       this.authing = false;
     };
-    const onError = () => {
+    const onError = (message) => {
       this.disconnect();
+      error('Bad login', message);
     };
     this.send('login', {
       login: this.clientId,
@@ -148,33 +178,60 @@ export default class Client {
     }, onSuccess, onError);
   }
 
+  // TODO These sub/unsub methods assume one subscription per request. The
+  // verto API allows clients to subscribe to multiple channels with a single
+  // request and returns allowed subscriptions in a success response, failed
+  // subscriptions in an error response.
+
   subscribe(eventChannel) {
-    this.subscriptions[eventChannel] = {
-      eventChannel: eventChannel,
-      ready: false,
+    const onSuccess = () => {
+      this.subscriptions[eventChannel] = {}
+      info('Subscribed to', eventChannel);
     }
-    this.send('verto.subscribe', {eventChannel});
+    const onError = (message) => {
+      error('Bad sub response', message);
+    }
+    this.send('verto.subscribe', {
+      eventChannel
+    }, onSuccess, onError);
   }
 
   unsubscribe(eventChannel) {
     const onSuccess = () => {
       delete this.subscriptions[eventChannel];
+      info('Unsubscribed from', eventChannel);
     }
-    this.send('verto.unsubscribe', {eventChannel}, onSuccess);
+    const onError = (message) => {
+      error('Bad unsub response', message);
+    }
+    this.send('verto.unsubscribe', {
+      eventChannel
+    }, onSuccess, onError);
   }
 
   publish(eventChannel, data) {
+    const onSuccess = (message) => {
+      if ('code' in message.result) {
+        error('Bad pub response', message);
+      }
+    }
+    const onError = (message) => {
+      error('Bad pub response', message);
+    }
     this.send('verto.broadcast', {
       localBroadcast: true,
       eventChannel,
       ...data,
-    });
+    }, onSuccess, onError);
   }
 
   ping() {
-    // this.clearCallbacks();
+    this.cleanResponseCallbacks();
+    const onError = (message) => {
+      error('Bad ping response', message);
+    }
     if (this.ws.isConnected()) {
-      this.send('echo');
+      this.send('echo', {}, null, onError);
     }
   }
 }

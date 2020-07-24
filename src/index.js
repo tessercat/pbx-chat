@@ -5,7 +5,7 @@
 import Client from './client.js';
 
 window.addEventListener('load', function () {
-  window.debug = true;
+  // window.debug = true;
   window.client = new Client();
   window.client.connect();
 });
