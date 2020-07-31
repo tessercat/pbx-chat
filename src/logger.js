@@ -6,16 +6,17 @@ function identifier() {
   return `[pbx ${new Date().toLocaleTimeString()}]`;
 }
 
-export const debug = (...args) => {
-  if (window.debug) {
-    console.debug(identifier(), ...args);
+let logger = {
+  debug: (...args) => {
+    if (window.pbxDebugEnabled) {
+      console.debug(identifier(), ...args);
+    }
+  },
+  info: (...args) => {
+    console.log(identifier(), ...args);
+  },
+  error: (...args) => {
+    console.error(identifier(), ...args);
   }
 }
-
-export const info = (...args) => {
-  console.log(identifier(), ...args);
-}
-
-export const error = (...args) => {
-  console.error(identifier(), ...args);
-}
+export default logger;

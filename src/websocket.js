@@ -2,7 +2,7 @@
  *  Copyright (c) 2020 Peter Christensen. All Rights Reserved.
  *  CC BY-NC-ND 4.0.
  */
-import {info} from './logger.js';
+import logger from './logger.js';
 
 export default class MyWebSocket {
 
@@ -27,7 +27,7 @@ export default class MyWebSocket {
     const delay = this.retryCount * this.retryBackoff > this.retryMaxWait
       ? this.retryMaxWait
       : this.retryCount * this.retryBackoff;
-    info(`waiting ${delay/1000}s after ${this.retryCount} tries`);
+    logger.info(`Waiting ${delay/1000}s after ${this.retryCount} tries`);
     this.retryTimer = setTimeout((...handlers) => {
       this.retryCount += 1;
       this.connect(...handlers);
