@@ -3,7 +3,7 @@
  *  CC BY-NC-ND 4.0.
  */
 function identifier() {
-  return `[pbx ${new Date().toLocaleTimeString()}]`;
+  return `[pbx-client ${new Date().toLocaleTimeString()}]`;
 }
 
 let logger = {

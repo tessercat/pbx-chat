@@ -4,8 +4,8 @@ This client is
 a FreeSWITCH verto endpoint module
 JSON-RPC 2.0 WebSocket client.
 
-- Reconnect on WebSocket disconnection with backoff on retry.
-- Log in on WebSocket connection.
+- Reconnects on WebSocket disconnection with backoff on retry.
+- Logs in on WebSocket connection.
 - Subscribes to receive
   the channel's presence events
   on client ready.
@@ -14,7 +14,6 @@ JSON-RPC 2.0 WebSocket client.
 - Negotiates peer-to-peer media connections
   with other clients 
   via the verto endpoint.
-- Allows a single peer-to-peer connection.
 
 
 ## Perfect negotiation
@@ -50,10 +49,10 @@ The peer-to-peer signal channel
 is implemented using the verto endpoint
 `verto.info` `msg` function.
 
-Clients base64-encode message bodies
-before sending and upon receipt
-so that FreeSWITCH doesn't change them
-en route.
+Clients base64-encode message bodies before sending
+and decode upon receipt
+so that the FreeSWITCH chat command
+doesn't change them en route.
 
 The `msg` function
 generates a `MESSAGE` event
@@ -73,29 +72,29 @@ directly to the target verto user.
 ## Peer connection establishment
 
 To establish a peer connection,
-one client makes a connection offer
+one peer makes a connection offer
 and another accepts.
 
-Clients allow
+Peers allow
 only a single peer connection
 at a time.
 
 ### Offering peer
 
 To start a new peer connection,
-clients create a new PeerConnection object,
+peers create a new PeerConnection object,
 initialize the object's local media stream
 (by enumerating and getting local media),
 and send an `offer` message
 directly to another peer.
 
 If the offering peer receives `close` in response,
-the offering client destroys the PeerConnection object.
+the offering peer destroys the PeerConnection object.
 
 If the offering peer receives `accept` in response,
-the offering client fully initializes the peer connection
+the offering peer fully initializes the peer connection
 by creating an RTCPeerConnection object,
-attaching the client's handlers to the object's events
+attaching the peers's handlers to the object's events
 and adding local media stream tracks
 to the RTCPeerConnection object.
 

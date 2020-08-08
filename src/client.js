@@ -2,9 +2,7 @@
  * Copyright (c) 2020 Peter Christensen. All Rights Reserved.
  * CC BY-NC-ND 4.0.
  */
-import View from './view.js';
 import MyWebSocket from './websocket.js';
-import PeerConnection from './peer-connection.js';
 import logger from './logger.js';
 
 const CONST = {
@@ -14,10 +12,10 @@ const CONST = {
 }
 
 class Request {
-  constructor(method, params, clientId, requestId) {
+  constructor(method, params, sessid, requestId) {
     this.jsonrpc = '2.0';
     this.method = method;
-    this.params = {sessid: clientId, ...params};
+    this.params = {sessid, ...params};
     this.id = requestId;
   }
 }
@@ -32,61 +30,94 @@ class ResponseCallbacks {
 
 export default class Client {
 
-  constructor() {
-    this.view = new View();
-    this.channelId = this.view.channelId;
-    this.clientId = this.view.clientId;
-    this.password = this.view.password;
+  constructor(clientId) {
+    this.clientId = clientId;
     this.ws = new MyWebSocket();
     this.keepaliveTimer = null;
     this.currentRequestId = 0;
     this.authing = false;
     this.responseCallbacks = {};
-    this.subscriptions = {};
-    this.peer = null;
+    this.isSubscribed = false;
   }
 
-  // WebSocket methods/handlers.
+  // Public methods.
 
-  connect() {
+  setMessageHandlers(presenceEventHandler, infoMsgHandler) {
+    this.presenceEventHandler = presenceEventHandler;
+    this.infoMsgHandler = infoMsgHandler;
+  }
+
+  connect(username, password, channelId) {
+    this.username = username;
+    this.password = password;
+    this.channelId = channelId;
     this.ws.connect(
-      this.connectHandler.bind(this),
-      this.disconnectHandler.bind(this),
-      this.messageHandler.bind(this),
+      this._wsConnectHandler.bind(this),
+      this._wsDisconnectHandler.bind(this),
+      this._wsMessageHandler.bind(this),
     );
-  }
-
-  connectHandler() {
-    logger.info('Connected');
-    clearInterval(this.keepaliveTimer);
-    this.cleanResponseCallbacks();
-    this.keepaliveTimer = setInterval(() => {
-      this.ping();
-    }, CONST.keepaliveInterval);
-    this.authing = false;
-    this.send('login');
   }
 
   disconnect() {
+    this._publishDisconnect();
     this.ws.disconnect(
-      this.disconnectHandler.bind(this),
+      this._wsDisconnectHandler.bind(this),
     );
   }
 
-  disconnectHandler() {
+  publishPresence(isAvailable) {
+    const onSuccess = (message) => {
+      if ('code' in message.result) {
+        logger.error('Bad pub response', message);
+      }
+    }
+    const onError = (message) => {
+      logger.error('Bad pub response', message);
+    }
+    this._send('verto.broadcast', {
+      localBroadcast: true,
+      eventChannel: this.channelId,
+      isAvailable: isAvailable,
+    }, onSuccess, onError);
+  }
+
+  sendInfoMsg(clientId, body) {
+    const onError = (message) => {
+      logger.error('Bad response', message);
+    }
+    const encoded = this._encodeMessage(body);
+    this._send('verto.info', {
+      msg: {to: clientId, body: encoded}
+    }, null, onError);
+  }
+
+  // Websocket event handlers.
+
+  _wsConnectHandler() {
+    logger.info('Connected');
     clearInterval(this.keepaliveTimer);
-    this.cleanResponseCallbacks();
+    this._cleanResponseCallbacks();
+    this.keepaliveTimer = setInterval(() => {
+      this._ping();
+    }, CONST.keepaliveInterval);
+    this.authing = false;
+    this._send('login');
+  }
+
+  _wsDisconnectHandler() {
+    clearInterval(this.keepaliveTimer);
+    this._cleanResponseCallbacks();
     logger.info('Disconnected');
   }
 
-  messageHandler(event) {
+  _wsMessageHandler(event) {
     try {
       let message = JSON.parse(event.data);
       logger.debug('Received', message);
       if (this.responseCallbacks[message.id]) {
-        this.responseHandler(message);
+        this._responseHandler(message);
       } else {
-        this.eventHandler(message);
+        this._eventHandler(message);
       }
     } catch (error) {
       logger.error('Error handling message', error);
@@ -94,62 +125,26 @@ export default class Client {
     }
   }
 
-  // JSON-RPC request/response methods/handlers.
+  // Info message helpers.
 
-  send(method, params, onSuccess, onError) {
-    this.currentRequestId += 1;
-    const request = new Request(
-      method,
-      params,
-      this.clientId,
-      this.currentRequestId
-    );
-    this.responseCallbacks[request.id] = new ResponseCallbacks(
-      onSuccess, onError
-    );
-    logger.debug('Sending', request);
-    this.ws.send(request);
-  }
-
-  responseHandler(message) {
-    if (message.result) {
-      const onSuccess = this.responseCallbacks[message.id].onSuccess;
-      if (onSuccess) {
-        onSuccess(message);
+  _encodeMessage(str) {
+    return btoa(encodeURIComponent(str).replace(
+      /%([0-9A-F]{2})/g,
+      (match, p1) => {
+        return String.fromCharCode('0x' + p1);
       }
-    } else {
-      if (message.error) {
-        const code = parseInt(message.error.code);
-        if (!this.authing && code === CONST.authRequired) {
-          this.login();
-        } else {
-          const onError = this.responseCallbacks[message.id].onError;
-          if (onError) {
-            onError(message);
-          }
-        }
-      } else {
-        logger.error('Bad response', message);
-      }
-    }
-    delete this.responseCallbacks[message.id];
+    ));
   }
 
-  eventHandler(event) {
-    switch (event.method) {
-      case 'verto.clientReady':
-        this.subscribe(this.channelId);
-        break;
-      case 'verto.info':
-        this.handleMessage(event.params.msg);
-        break;
-      default:
-        logger.error('Unhandled event', event);
-        break;
-    }
+  _decodeMessage(str) {
+    return decodeURIComponent(atob(str).split('').map((c) => {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
   }
 
-  cleanResponseCallbacks() {
+  // Response/event message handling helpers.
+
+  _cleanResponseCallbacks() {
     const expired = [];
     const now = new Date().setSeconds(-30);
     logger.debug('Cleaning up expired response callbacks');
@@ -165,9 +160,77 @@ export default class Client {
     }
   }
 
-  // Client auth and socket keepalive methods.
+  _responseHandler(message) {
+    if (message.result) {
+      const onSuccess = this.responseCallbacks[message.id].onSuccess;
+      if (onSuccess) {
+        onSuccess(message);
+      }
+    } else {
+      if (message.error) {
+        const code = parseInt(message.error.code);
+        if (!this.authing && code === CONST.authRequired) {
+          this._login();
+        } else {
+          const onError = this.responseCallbacks[message.id].onError;
+          if (onError) {
+            onError(message);
+          }
+        }
+      } else {
+        logger.error('Bad response', message);
+      }
+    }
+    delete this.responseCallbacks[message.id];
+  }
 
-  login() {
+  _eventHandler(event) {
+    const method = event.method;
+    if (method === 'verto.clientReady') {
+      this._subscribe();
+    } else if (method === 'verto.info') {
+      const msg = event.params.msg;
+      if (msg) {
+        this.infoMsgHandler(msg.from, this._decodeMessage(msg.body));
+      } else {
+        logger.error('Unhandled verto.info', event);
+      }
+    } else if (method === 'verto.event') {
+      if (event.params.sessid === this.clientId) {
+        return;
+      }
+      if ('isAvailable' in event.params) {
+        this.presenceEventHandler(
+          event.params.sessid, event.params.isAvailable
+        );
+      } else if ('isDisconnected' in event.params) {
+        this.presenceEventHandler(event.params.sessid, null);
+      } else {
+        logger.error('Unhandled verto.event', event);
+      }
+    } else {
+      logger.error('Unhandled event', event);
+    }
+  }
+
+  // Private JSON-RPC methods.
+
+  _send(method, params, onSuccess, onError) {
+    this.currentRequestId += 1;
+    const request = new Request(
+      method,
+      params,
+      this.clientId,
+      this.currentRequestId
+    );
+    this.responseCallbacks[request.id] = new ResponseCallbacks(
+      onSuccess, onError
+    );
+    logger.debug('Sending', request);
+    this.ws.send(request);
+  }
+
+  _login() {
     this.authing = true;
     const onSuccess = () => {
       logger.info('Logged in');
@@ -177,224 +240,41 @@ export default class Client {
       this.disconnect();
       logger.error('Bad login', message);
     };
-    this.send('login', {
-      login: this.clientId,
-      passwd: this.password,
+    this._send('login', {
+      login: this.username,
+      passwd: this.password
     }, onSuccess, onError);
   }
 
-  ping() {
-    this.cleanResponseCallbacks();
+  _ping() {
+    this._cleanResponseCallbacks();
     const onError = (message) => {
       logger.error('Bad ping response', message);
     }
     if (this.ws.isConnected()) {
-      this.send('echo', {}, null, onError);
+      this._send('echo', {}, null, onError);
     }
   }
 
-  // Channel pub/sub methods.
-
-  // TODO These sub/unsub methods assume one subscription per request. The
-  // verto API allows clients to subscribe to multiple channels with a single
-  // request and returns allowed/existing subscriptions in a success response,
-  // failed subscriptions in an error response.
-
-  subscribe(eventChannel) {
+  _subscribe() {
     const onSuccess = () => {
-      this.subscriptions[eventChannel] = {}
-      logger.info('Subscribed to', eventChannel);
+      logger.info('Subscribed');
+      this.isSubscribed = true;
+      this.publishPresence(true);
     }
     const onError = (message) => {
       logger.error('Bad sub response', message);
     }
-    this.send('verto.subscribe', {
-      eventChannel
+    this._send('verto.subscribe', {
+      eventChannel: this.channelId
     }, onSuccess, onError);
   }
 
-  unsubscribe(eventChannel) {
-    const onSuccess = () => {
-      delete this.subscriptions[eventChannel];
-      logger.info('Unsubscribed from', eventChannel);
-    }
-    const onError = (message) => {
-      logger.error('Bad unsub response', message);
-    }
-    this.send('verto.unsubscribe', {
-      eventChannel
-    }, onSuccess, onError);
-  }
-
-  publish(eventChannel, data) {
-    const onSuccess = (message) => {
-      if ('code' in message.result) {
-        logger.error('Bad pub response', message);
-      }
-    }
-    const onError = (message) => {
-      logger.error('Bad pub response', message);
-    }
-    this.send('verto.broadcast', {
+  _publishDisconnect() {
+    this._send('verto.broadcast', {
       localBroadcast: true,
-      eventChannel,
-      ...data,
-    }, onSuccess, onError);
-  }
-
-  // Peer-to-peer connection control methods.
-
-  _initPeerConnection() {
-    const trackHandler = (track) => {
-      this.view.addTrack(track);
-      logger.info('Added track to view', track.kind);
-    }
-    const candidateHandler = (jsonCandidate) => {
-      const stringCandidate = JSON.stringify(jsonCandidate);
-      this.sendMessage(this.peer.peerId, stringCandidate);
-    }
-    const offerHandler = (jsonSdp) => {
-      const stringSdp = JSON.stringify(jsonSdp);
-      this.sendMessage(this.peer.peerId, stringSdp);
-    }
-    this.peer.initPeerConnection(
-      trackHandler, candidateHandler, offerHandler
-    );
-  }
-
-  offerPeerConnection(peerId) {
-    if (!this.peer) {
-      const onSuccess = () => {
-        this.sendMessage(this.peer.peerId, 'offer');
-      };
-      const onError = (error) => {
-        throw error;
-      };
-      this.peer = new PeerConnection(peerId, true);
-      this.peer.initLocalStream(onSuccess, onError);
-    }
-  }
-
-  acceptPeerConnection(peerId) {
-    if (!this.peer) {
-      const onSuccess = () => {
-        this.sendMessage(this.peer.peerId, 'accept');
-        this._initPeerConnection();
-      };
-      const onError = (error) => {
-        throw error;
-      };
-      this.peer = new PeerConnection(peerId, false);
-      this.peer.initLocalStream(onSuccess, onError);
-    }
-  }
-
-  closePeerConnection() {
-    if (this.peer) {
-      this.sendMessage(this.peer.peerId, 'close');
-      this.view.removeTracks();
-      this.peer.destroy();
-      this.peer = null;
-    }
-  }
-
-  // Peer-to-peer signal handlers.
-
-  encode(str) {
-    return btoa(encodeURIComponent(str).replace(
-      /%([0-9A-F]{2})/g,
-      (match, p1) => {
-        return String.fromCharCode('0x' + p1);
-      }
-    ));
-  }
-
-  decode(str) {
-    return decodeURIComponent(atob(str).split('').map((c) => {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-  }
-
-  sendMessage(to, body) {
-    const onError = (message) => {
-      logger.error('Bad response', message);
-    }
-    const encoded = this.encode(body);
-    this.send('verto.info', {msg: {to: to, body: encoded}}, null, onError);
-  }
-
-  handleMessage(msg) {
-    const decoded = this.decode(msg.body);
-    if (decoded === 'offer') {
-      this.handleOffer(msg.from);
-    } else if (decoded === 'accept') {
-      this.handleAccept(msg.from);
-    } else if (decoded === 'close') {
-      this.handleClose(msg.from);
-    } else {
-      let jsonData;
-      try {
-        jsonData = JSON.parse(decoded);
-      } catch (error) {
-        logger.error('Received unhandled message', msg, decoded);
-        return;
-      }
-      if ('candidate' in jsonData) {
-        this.handleCandidate(msg.from, jsonData);
-      } else if ('sdp' in jsonData) {
-        this.handleSdp(msg.from, jsonData);
-      } else {
-        logger.error('Received unhandled JSON message', msg, jsonData);
-      }
-    }
-  }
-
-  handleOffer(peerId) {
-    if (this.peer) {
-      if (this.peer.peerId !== peerId) {
-        this.sendMessage(peerId, 'close');
-      }
-    } else {
-      // TODO Tell view about the offer and let it decide.
-      this.acceptPeerConnection(peerId);
-    }
-  }
-
-  handleAccept(peerId) {
-    if (this.peer && this.peer.peerId === peerId) {
-      this._initPeerConnection();
-    }
-  }
-
-  handleClose(peerId) {
-    if (this.peer && this.peer.peerId === peerId) {
-      this.view.removeTracks();
-      this.peer.destroy();
-      this.peer = null;
-    }
-  }
-
-  handleCandidate(peerId, jsonCandidate) {
-    if (this.peer && this.peer.peerId === peerId) {
-      logger.debug('Received candidate', jsonCandidate);
-      this.peer.addCandidate(jsonCandidate).then(() => {
-      }).catch(error => {
-        throw error;
-      });
-    }
-  }
-
-  handleSdp(peerId, jsonSdp) {
-    if (this.peer && this.peer.peerId === peerId) {
-      logger.debug('Received description', jsonSdp);
-      const sendAnswerHandler = (newJsonSdp) => {
-        const stringSdp = JSON.stringify(newJsonSdp);
-        this.sendMessage(peerId, stringSdp);
-      }
-      this.peer.addDescription(jsonSdp, sendAnswerHandler).then(() => {
-      }).catch(error => {
-        throw error;
-      });
-    }
+      eventChannel: this.channelId,
+      isDisconnected: true,
+    }, null, null);
   }
 }

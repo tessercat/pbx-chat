@@ -9,66 +9,16 @@ export default class PeerConnection {
   constructor(peerId, isPolite) {
     this.peerId = peerId;
     this.isPolite = isPolite;
-    this.localStream = null;
     this.pc = null;
     this.makingOffer = false;
     this.ignoreOffer = false;
   }
 
-  destroy() {
-    this.destroyLocalStream();
-    this.destroyPeerConnection();
-  }
-
-  // Local stream methods.
-
-  _getLocalStream(onSuccess, onError) {
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-      let audio = false;
-      let video = false;
-      for (const device of devices) {
-        if (device.kind.startsWith('audio')) {
-          logger.info('Found audio device');
-          audio = true;
-        } else if (device.kind.startsWith('video')) {
-          logger.info('Found video device');
-          video = true;
-        }
-      }
-      if (!audio && !video) {
-        throw new Error('No media devices found.');
-      }
-      return navigator.mediaDevices.getUserMedia({audio, video});
-    }).then(stream => {
-      onSuccess(stream);
-    }).catch(error => {
-      onError(error);
-    });
-  }
-
-  initLocalStream(successHandler, errorHandler) {
-    const onSuccess = (stream) => {
-      this.localStream = stream;
-      successHandler();
+  init(trackHandler, candidateHandler, sdpHandler) {
+    const configuration = {
+      iceServers: [{urls: `stun:${location.hostname}`}]
     }
-    const onError = (error) => {
-      errorHandler(error);
-    }
-    this._getLocalStream(onSuccess, onError);
-  }
-
-  destroyLocalStream() {
-    if (this.localStream) {
-      for (const track of this.localStream.getTracks()) {
-        track.stop();
-      }
-      this.localStream = null;
-    }
-  }
-
-  // Peer connection methods.
-
-  _setHandlers(trackHandler, candidateHandler, offerHandler) {
+    this.pc = new RTCPeerConnection(configuration);
     this.pc.ontrack = (event) => {
       if (event.track) {
         trackHandler(event.track);
@@ -76,7 +26,6 @@ export default class PeerConnection {
     };
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
-        logger.info('Sending local candidate');
         candidateHandler(event.candidate.toJSON());
       }
     };
@@ -89,7 +38,7 @@ export default class PeerConnection {
           return;
         }
         await this.pc.setLocalDescription(offer);
-        offerHandler(this.pc.localDescription.toJSON());
+        sdpHandler(this.pc.localDescription.toJSON());
       } catch (error) {
         logger.error('SDP negotiation error', error);
       } finally {
@@ -98,18 +47,13 @@ export default class PeerConnection {
     };
   }
 
-  initPeerConnection(...handlers) {
-    const configuration = {
-      iceServers: [{urls: `stun:${location.hostname}`}]
-    }
-    this.pc = new RTCPeerConnection(configuration);
-    this._setHandlers(...handlers);
-    for (const track of this.localStream.getTracks()) {
-      this.pc.addTrack(track, this.localStream);
+  addUserMedia(stream) {
+    for (const track of stream.getTracks()) {
+      this.pc.addTrack(track, stream);
     }
   }
 
-  destroyPeerConnection() {
+  close() {
     if (this.pc) {
       this.pc.close();
       this.pc = null;
@@ -119,7 +63,6 @@ export default class PeerConnection {
   // Incoming signal handler methods.
 
   async addCandidate(jsonCandidate) {
-    logger.info('Received remote candidate');
     try {
       await this.pc.addIceCandidate(jsonCandidate);
     } catch (error) {
@@ -129,7 +72,7 @@ export default class PeerConnection {
     }
   }
 
-  async addDescription(jsonSdp, sendAnswerHandler) {
+  async addSdp(jsonSdp, sdpHandler) {
     const sdp = new RTCSessionDescription(jsonSdp);
     const offerCollision = (
       sdp.type === 'offer'
@@ -152,8 +95,7 @@ export default class PeerConnection {
     }
     if (sdp.type === 'offer') {
       await this.pc.setLocalDescription(await this.pc.createAnswer());
-      logger.info('Sending local SDP');
-      sendAnswerHandler(this.pc.localDescription.toJSON());
+      sdpHandler(this.pc.localDescription.toJSON());
     }
   }
 }
