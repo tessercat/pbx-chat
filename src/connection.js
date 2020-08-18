@@ -4,11 +4,11 @@
  */
 import logger from './logger.js';
 
-export default class PeerConnection {
+export default class Connection {
 
-  constructor(peerId, isPolite) {
-    this.peerId = peerId;
+  constructor(isPolite) {
     this.isPolite = isPolite;
+    this.userMedia = null;
     this.pc = null;
     this.makingOffer = false;
     this.ignoreOffer = false;
@@ -47,16 +47,65 @@ export default class PeerConnection {
     };
   }
 
-  addUserMedia(stream) {
-    for (const track of stream.getTracks()) {
-      this.pc.addTrack(track, stream);
-    }
-  }
-
   close() {
     if (this.pc) {
       this.pc.close();
       this.pc = null;
+    }
+    if (this.userMedia) {
+      for (const track of this.userMedia.getTracks()) {
+        track.stop();
+      }
+      this.userMedia = null;
+    }
+  }
+
+  // User media methods.
+
+  _getUserMedia(onSuccess, onError, audio, video) {
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      let hasAudio = false;
+      let hasVideo = false;
+      for (const device of devices) {
+        if (device.kind.startsWith('audio')) {
+          logger.info('Found audio device');
+          hasAudio = true;
+        } else if (device.kind.startsWith('video')) {
+          logger.info('Found video device');
+          hasVideo = true;
+        }
+      }
+      if (audio && !hasAudio) {
+        throw new Error('No audio devices found.');
+      }
+      if (video && !hasVideo) {
+        throw new Error('No video devices found.');
+      }
+      return navigator.mediaDevices.getUserMedia({audio, video});
+    }).then(stream => {
+      onSuccess(stream);
+    }).catch(error => {
+      onError(error);
+    });
+  }
+
+  initUserMedia(successHandler, errorHandler, audio = true, video = true) {
+    const onSuccess = (stream) => {
+      this.userMedia = stream;
+      successHandler(stream);
+    }
+    const onError = (error) => {
+      errorHandler(error);
+    }
+    this._getUserMedia(onSuccess, onError, audio, video);
+  }
+
+  addUserMediaTracks() {
+    if (!this.userMedia || !this.userMedia.stream) {
+      throw new Error('No user media found.');
+    }
+    for (const track of this.userMedia.stream.getTracks()) {
+      this.pc.addTrack(track, this.userMedia.stream);
     }
   }
 
