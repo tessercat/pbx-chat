@@ -38,7 +38,9 @@ export default class Connection {
           return;
         }
         await this.pc.setLocalDescription(offer);
-        sdpHandler(this.pc.localDescription.toJSON());
+        if (this.pc.localDescription) {
+          sdpHandler(this.pc.localDescription.toJSON());
+        }
       } catch (error) {
         logger.error('SDP negotiation error', error);
       } finally {
@@ -100,12 +102,12 @@ export default class Connection {
     this._getUserMedia(onSuccess, onError, audio, video);
   }
 
-  addUserMediaTracks() {
-    if (!this.userMedia || !this.userMedia.stream) {
+  addTracks() {
+    if (!this.userMedia || this.userMedia.getTracks().length === 0) {
       throw new Error('No user media found.');
     }
-    for (const track of this.userMedia.stream.getTracks()) {
-      this.pc.addTrack(track, this.userMedia.stream);
+    for (const track of this.userMedia.getTracks()) {
+      this.pc.addTrack(track, this.userMedia);
     }
   }
 

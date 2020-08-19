@@ -18,7 +18,6 @@ export default class View {
     this._modalControl = document.querySelector("#modal-control");
     this._modalOverlay = document.querySelector("#modal-overlay");
     this._videoElement = document.querySelector("#video");
-    this._videoSrc = null;
   }
 
   // Content management methods.
@@ -81,21 +80,18 @@ export default class View {
   // Track mangement methods.
 
   addTrack(track) {
-    if (!this._videoSrc) {
-      this._videoSrc = new MediaStream();
-      this._videoElement.srcObject = this._videoSrc;
+    if (!this._videoElement.srcObject) {
+      this._videoElement.srcObject = new MediaStream();
     }
-    this._videoSrc.addTrack(track);
+    this._videoElement.srcObject.addTrack(track);
   }
 
   removeTracks() {
-    const videoSrc = this._videoSrc;
-    this._videoSrc = null;
-    if (videoSrc) {
-      const tracks = videoSrc.getTracks();
-      for (const track of tracks) {
-        videoSrc.removeTrack(track);
+    if (this._videoElement.srcObject) {
+      for (const track of this._videoElement.srcObject.getTracks()) {
+        track.stop();
       }
+      this._videoElement.srcObject = null;
     }
   }
 }

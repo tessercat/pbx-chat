@@ -16,7 +16,7 @@ class PeersDialog {
     this.offers = {};
     this.offersDiv = this.peers.querySelector("#offering-peers");
     this.available = {};
-    this.availablePeersDiv = this.peers.querySelector("#available-peers");
+    this.availableDiv = this.peers.querySelector("#available-peers");
   }
 
   _peersPanel() {
@@ -58,7 +58,7 @@ class PeersDialog {
     section.append(button);
     logger.info('Adding peer', peerName);
     this.available[peerId] = peer;
-    this.availablePeersDiv.append(peer);
+    this.availableDiv.append(peer);
   }
 
   removePeer(peerId, peerName) {
@@ -71,7 +71,7 @@ class PeersDialog {
   }
 
   addOffer(peerId, peerName, acceptHandler) {
-    if (this.offeringPeers[peerId]) {
+    if (this.offers[peerId]) {
       return;
     }
     const peer = document.createElement("article");
@@ -92,7 +92,7 @@ class PeersDialog {
     });
     section.append(button);
     logger.info('Adding offer', peerName);
-    this.offeringPeers[peerId] = peer;
+    this.offers[peerId] = peer;
     this.offersDiv.append(peer);
   }
 
@@ -151,10 +151,12 @@ export default class Peer {
     const section = document.createElement("section");
     section.textContent = `Offer sent. Waiting for an answer.`;
     const button = document.createElement("button");
-    button.textContent = "Disconnect";
-    button.setAttribute("title", "Close the connection");
+    button.textContent = "Cancel";
+    button.setAttribute("title", "Cancel the offer");
+    button.style.float = "right";
     button.addEventListener("click", () => {
       this._closeHandler();
+      this.view.showModal();
     });
     const footer = document.createElement("footer");
     footer.append(button);
@@ -198,7 +200,6 @@ export default class Peer {
     const onError = (error) => {
       logger.error(error);
       this._closeHandler();
-      this.view.hideModal();
       this.view.showAlert(error.message);
     };
     if (!this.connection) {
@@ -212,7 +213,7 @@ export default class Peer {
     const onSuccess = () => {
       this.client.sendInfoMsg(this.connection.peerId, 'accept');
       this.view.hideModal();
-      this.view.setNavBarContent(this.disconnectButton);
+      this.view.setNavMenuContent(this.disconnectButton);
       this._initConnection();
     };
     const onError = (error) => {
@@ -232,8 +233,9 @@ export default class Peer {
       this.view.hideModal();
       this.view.setModalContent(...this.peers.getContent());
       this.view.setNavMenuContent(this.peersButton);
-      this.client.sendInfoMsg(this.connection.peerId, 'close');
       this.view.removeTracks();
+      this.client.sendInfoMsg(this.connection.peerId, 'close');
+      this.client.publishPresence(true);
       this.connection.close();
       this.connection = null;
     }
@@ -258,7 +260,7 @@ export default class Peer {
     }
     if (this.connection) {
       this.connection.init(trackHandler, candidateHandler, offerHandler);
-      this.connection.addUserMedia();
+      this.connection.addTracks();
     }
   }
 
@@ -307,13 +309,15 @@ export default class Peer {
   }
 
   _handleOffer(peerId) {
-    this.peers.addOffer(peerId, this._acceptHandler.bind(this));
+    this.peers.addOffer(
+      peerId, this._peerName(peerId), this._acceptHandler.bind(this)
+    );
   }
 
   _handleAccept(peerId) {
     if (this.connection && this.connection.peerId === peerId) {
       this.view.hideModal();
-      this.view.setNavBarContent(this.disconnectButton);
+      this.view.setNavMenuContent(this.disconnectButton);
       this._initConnection();
     }
   }
@@ -323,7 +327,7 @@ export default class Peer {
       this.view.removeTracks();
       this.connection.close();
       this.connection = null;
-      this.menu.showPeersAction();
+      this.view.setNavMenuContent(this.peersButton);
     } else {
       this.peers.removeOffer(peerId, this._peerName(peerId));
     }
