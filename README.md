@@ -23,7 +23,9 @@ implements perfect negotiation
 as per the spec example at
 https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
 and modified as per the blog post at
-https://blog.mozilla.org/webrtc/perfect-negotiation-in-webrtc/.
+https://blog.mozilla.org/webrtc/perfect-negotiation-in-webrtc/
+and as per the Stack Overflow answer at
+https://stackoverflow.com/questions/61956693/webrtc-perfect-negotiation-issues.
 
 In perfect negotiation,
 an SDP offer collision occurs

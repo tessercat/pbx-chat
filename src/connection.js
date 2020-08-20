@@ -136,10 +136,12 @@ export default class Connection {
     }
     if (offerCollision) {
       await Promise.all([
-        this.pc.setLocalDescription({type: 'rollback'}),
+        this.pc.setLocalDescription({type: "rollback"}).catch((error) => {
+          logger.error('SDP rollback error', error);
+        }),
         this.pc.setRemoteDescription(sdp)
       ]);
-      logger.info('Rolled back local SDP and accepted remote SDP');
+      logger.info('Rolled back local SDP and accepted remote');
     } else {
       await this.pc.setRemoteDescription(sdp);
       logger.info('Accepted remote SDP');
