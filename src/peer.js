@@ -12,20 +12,20 @@ class PeersDialog {
   constructor(view) {
     this.header = view.getModalHeader('Peers');
     this.peers = this._peersPanel();
-    this.footer = document.createElement("footer")
+    this.footer = document.createElement('footer')
     this.offers = {};
-    this.offersDiv = this.peers.querySelector("#offering-peers");
+    this.offersDiv = this.peers.querySelector('#offering-peers');
     this.available = {};
-    this.availableDiv = this.peers.querySelector("#available-peers");
+    this.availableDiv = this.peers.querySelector('#available-peers');
   }
 
   _peersPanel() {
-    const section = document.createElement("section");
-    const offering = document.createElement("div");
-    offering.setAttribute("id", "offering-peers");
+    const section = document.createElement('section');
+    const offering = document.createElement('div');
+    offering.setAttribute('id', 'offering-peers');
     section.append(offering);
-    const available = document.createElement("div");
-    available.setAttribute("id", "available-peers");
+    const available = document.createElement('div');
+    available.setAttribute('id', 'available-peers');
     section.append(available);
     return section;
   }
@@ -36,71 +36,79 @@ class PeersDialog {
     return [this.header, this.peers, this.footer];
   }
 
-  addPeer(peerId, peerName, offerHandler) {
+  addPeer(peerId, offerHandler) {
     if (this.available[peerId]) {
       return;
     }
-    const peer = document.createElement("article");
-    peer.classList.add("card");
-    const section = document.createElement("section");
+    if (this.offers[peerId]) {
+      this.removeOffer(peerId);
+    }
+    const peerName = peerId.substr(0, 5);
+    const peer = document.createElement('article');
+    peer.classList.add('card');
+    const section = document.createElement('section');
     peer.append(section);
-    const label = document.createElement("label");
+    const label = document.createElement('label');
     label.textContent = peerName;
-    label.classList.add("pseudo", "button");
+    label.classList.add('pseudo', 'button');
     section.append(label);
-    const button = document.createElement("button")
-    button.textContent = "Call";
-    button.setAttribute("title", `Call ${peerName}`);
-    button.style.float = "right";
-    button.addEventListener("click", () => {
+    const button = document.createElement('button')
+    button.textContent = 'Call';
+    button.setAttribute('title', `Call ${peerName}`);
+    button.style.float = 'right';
+    button.addEventListener('click', () => {
       offerHandler(peerId);
     });
     section.append(button);
-    logger.info('Adding peer', peerName);
+    logger.info('Adding', peerId);
     this.available[peerId] = peer;
     this.availableDiv.append(peer);
   }
 
-  removePeer(peerId, peerName) {
+  removePeer(peerId) {
     const peer = this.available[peerId];
     delete this.available[peerId];
     if (peer) {
-      logger.info('Removing peer', peerName);
+      logger.info('Removing', peerId);
       peer.remove();
     }
   }
 
-  addOffer(peerId, peerName, acceptHandler) {
+  addOffer(peerId, acceptHandler) {
     if (this.offers[peerId]) {
       return;
     }
-    const peer = document.createElement("article");
-    peer.classList.add("card")
-    const section = document.createElement("section");
+    if (this.available[peerId]) {
+      this.removePeer(peerId);
+    }
+    const peerName = peerId.substr(0, 5);
+    const peer = document.createElement('article');
+    peer.classList.add('card')
+    const section = document.createElement('section');
     peer.append(section);
-    const label = document.createElement("label");
+    const label = document.createElement('label');
     label.textContent = peerName;
-    label.classList.add("pseudo", "button");
+    label.classList.add('pseudo', 'button');
     section.append(label);
-    const button = document.createElement("button")
-    button.textContent = "Answer";
-    button.setAttribute("title", `Answer ${peerName}`);
-    button.style.float = "right";
-    button.classList.add("success");
-    button.addEventListener("click", () => {
+    const button = document.createElement('button')
+    button.textContent = 'Answer';
+    button.setAttribute('title', `Answer ${peerName}`);
+    button.style.float = 'right';
+    button.classList.add('success');
+    button.addEventListener('click', () => {
       acceptHandler(peerId);
     });
     section.append(button);
-    logger.info('Adding offer', peerName);
+    logger.info('Adding offer from', peerId);
     this.offers[peerId] = peer;
     this.offersDiv.append(peer);
   }
 
-  removeOffer(peerId, peerName) {
+  removeOffer(peerId) {
     const peer = this.offers[peerId];
     delete this.offers[peerId];
     if (peer) {
-      logger.info('Removing offer', peerName);
+      logger.info('Removing offer from', peerId);
       peer.remove();
     }
   }
@@ -110,25 +118,20 @@ export default class Peer {
 
   constructor() {
     this.view = new View();
+    this.connection = null;
     this.peers = new PeersDialog(this.view);
     this.peersButton = this._peersButton();
-    this.disconnectButton = this._disconnectButton();
-    this.offerDialog = this._offerDialog();
-    this.view.setModalContent(...this.peers.getContent());
     this.view.setNavMenuContent(this.peersButton);
-    this.connection = null;
-  }
-
-  _peerName(peerId) {
-    return peerId.substr(0, 5);
+    this.view.setModalContent(...this.peers.getContent());
+    this.view.showModal();
   }
 
   _peersButton() {
-    const button = document.createElement("button");
-    button.textContent = "Peers";
-    button.classList.add("pseudo");
-    button.setAttribute("title", "Show peers list");
-    button.addEventListener("click", () => {
+    const button = document.createElement('button');
+    button.textContent = 'Peers';
+    button.classList.add('pseudo');
+    button.setAttribute('title', 'Show peers list');
+    button.addEventListener('click', () => {
       if (!this.connection) {
         this.view.showModal();
       }
@@ -136,29 +139,30 @@ export default class Peer {
     return button;
   }
 
-  _disconnectButton() {
-    const button = document.createElement("button");
-    button.textContent = "Disconnect";
-    button.classList.add("pseudo");
-    button.setAttribute("title", "Close the connection");
-    button.addEventListener("click", () => {
-      this._closeHandler();
+  _disconnectButton(peerId) {
+    const button = document.createElement('button');
+    button.textContent = 'Disconnect';
+    button.classList.add('pseudo');
+    button.setAttribute('title', 'Close the connection');
+    button.addEventListener('click', () => {
+      this._closeConnection(peerId);
     });
     return button;
   }
 
-  _offerDialog() {
-    const section = document.createElement("section");
+  _offerDialog(peerId) {
+    const section = document.createElement('section');
     section.textContent = `Offer sent. Waiting for an answer.`;
-    const button = document.createElement("button");
-    button.textContent = "Cancel";
-    button.setAttribute("title", "Cancel the offer");
-    button.style.float = "right";
-    button.addEventListener("click", () => {
-      this._closeHandler();
+    const button = document.createElement('button');
+    button.textContent = 'Cancel';
+    button.setAttribute('title', 'Cancel the offer');
+    button.style.float = 'right';
+    button.addEventListener('click', () => {
+      this._closeConnection(peerId);
+      this.view.setModalContent(...this.peers.getContent());
       this.view.showModal();
     });
-    const footer = document.createElement("footer");
+    const footer = document.createElement('footer');
     footer.append(button);
     return [section, footer];
   }
@@ -188,18 +192,18 @@ export default class Peer {
     }
   }
 
-  // Peer-to-peer event handlers.
+  // Connection handlers.
 
-  _offerHandler(peerId) {
+  _offerConnection(peerId) {
     const onSuccess = () => {
       this.client.publishPresence(false);
       this.client.sendInfoMsg(this.connection.peerId, 'offer');
-      this.view.setModalContent(...this.offerDialog);
+      this.view.setModalContent(...this._offerDialog(peerId));
       this.view.showModal(true);
     };
     const onError = (error) => {
       logger.error(error);
-      this._closeHandler();
+      this._closeConnection(peerId);
       this.view.showAlert(error.message);
     };
     if (!this.connection) {
@@ -209,16 +213,14 @@ export default class Peer {
     }
   }
 
-  _acceptHandler(peerId) {
+  _acceptConnection(peerId) {
     const onSuccess = () => {
       this.client.sendInfoMsg(this.connection.peerId, 'accept');
-      this.view.hideModal();
-      this.view.setNavMenuContent(this.disconnectButton);
-      this._initConnection();
+      this._openConnection(peerId);
     };
     const onError = (error) => {
       logger.error(error);
-      this._closeHandler();
+      this._closeConnection(peerId);
       this.view.showAlert(error.message);
     };
     if (!this.connection) {
@@ -228,22 +230,7 @@ export default class Peer {
     }
   }
 
-  _closeHandler() {
-    if (this.connection) {
-      this.view.hideModal();
-      this.view.setModalContent(...this.peers.getContent());
-      this.view.setNavMenuContent(this.peersButton);
-      this.view.removeTracks();
-      this.client.sendInfoMsg(this.connection.peerId, 'close');
-      this.client.publishPresence(true);
-      this.connection.close();
-      this.connection = null;
-    }
-  }
-
-  // Peer connection init method.
-
-  _initConnection() {
+  _openConnection(peerId) {
     const trackHandler = (track) => {
       this.view.addTrack(track);
       logger.info('Added remote', track.kind);
@@ -258,9 +245,24 @@ export default class Peer {
       this.client.sendInfoMsg(this.connection.peerId, stringSdp);
       logger.info('Sent description');
     }
-    if (this.connection) {
+    if (this.connection && this.connection.peerId === peerId) {
+      this.view.hideModal();
+      this.view.setNavMenuContent(this._disconnectButton(peerId));
       this.connection.init(trackHandler, candidateHandler, offerHandler);
       this.connection.addTracks();
+    }
+  }
+
+  _closeConnection(peerId) {
+    logger.info(peerId);
+    this.view.setModalContent(...this.peers.getContent());
+    this.view.setNavMenuContent(this.peersButton);
+    this.view.removeTracks();
+    this.client.sendInfoMsg(peerId, 'close');
+    this.client.publishPresence(true);
+    if (this.connection && this.connection.peerId === peerId) {
+      this.connection.close();
+      this.connection = null;
     }
   }
 
@@ -268,14 +270,12 @@ export default class Peer {
 
   _presenceEventHandler(peerId, isAvailable) {
     if (isAvailable) {
-      this.peers.addPeer(
-        peerId, this._peerName(peerId), this._offerHandler.bind(this)
-      );
+      this.peers.addPeer(peerId, this._offerConnection.bind(this));
       if (!this.connection) {
-        this.client.sendInfoMsg(peerId, "available");
+        this.client.sendInfoMsg(peerId, 'available');
       }
     } else {
-      this.peers.removePeer(peerId, this._peerName(peerId));
+      this.peers.removePeer(peerId);
     }
   }
 
@@ -309,37 +309,29 @@ export default class Peer {
   }
 
   _handleOffer(peerId) {
-    this.peers.addOffer(
-      peerId, this._peerName(peerId), this._acceptHandler.bind(this)
-    );
+    this.peers.addOffer(peerId, this._acceptConnection.bind(this));
+    if (!this.connection && !this.view.isModalShown()) {
+      this.view.showModal();
+    }
   }
 
   _handleAccept(peerId) {
-    if (this.connection && this.connection.peerId === peerId) {
-      this.view.hideModal();
-      this.view.setNavMenuContent(this.disconnectButton);
-      this._initConnection();
-    }
+    this._openConnection(peerId);
   }
 
   _handleClose(peerId) {
     if (this.connection && this.connection.peerId === peerId) {
-      this.view.removeTracks();
-      this.connection.close();
-      this.connection = null;
-      this.view.setNavMenuContent(this.peersButton);
+      this._closeConnection(peerId);
     } else {
-      this.peers.removeOffer(peerId, this._peerName(peerId));
+      this.peers.removeOffer(peerId);
     }
   }
 
   _handlePresenceInfo(peerId, isAvailable) {
     if (isAvailable) {
-      this.peers.addPeer(
-        peerId, this._peerName(peerId), this._offerHandler.bind(this)
-      );
+      this.peers.addPeer(peerId, this._offerConnection.bind(this));
     } else {
-      this.peers.removePeer(peerId, this._peerName(peerId));
+      this.peers.removePeer(peerId);
     }
   }
 

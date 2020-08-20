@@ -77,6 +77,10 @@ export default class View {
     this._modalControl.checked = false;
   }
 
+  isModalShown() {
+    return this._modalControl.checked;
+  }
+
   // Track mangement methods.
 
   addTrack(track) {
