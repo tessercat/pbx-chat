@@ -6,24 +6,79 @@
  * to interact with the page served by the call control and
  * application server.
  */
+class ActivityWatcher {
+
+  constructor(element) {
+    this.element = element;
+    this.isVisible = true;
+    this.expired = 0;
+    this.maxInactivity = 2;
+    this.activityEvents = ['mousemove', 'touchstart'];
+    this.interval = null;
+  }
+
+  onActivity() {
+    this.expired = 0;
+    if (!this.isVisible) {
+      this.isVisible = true;
+      this.element.style.visibility = 'visible';
+    }
+  }
+
+  startWatching() {
+    this.interval = setInterval(() => {
+      this.expired++;
+      if (this.isVisible && this.expired > this.maxInactivity) {
+        this.isVisible = false;
+        this.element.style.visibility = 'hidden';
+      }
+    }, 1000);
+    this.activityEvents.forEach((event) => {
+      document.addEventListener(event, this.onActivity.bind(this));
+    });
+  }
+
+  stopWatching() {
+    this.activityEvents.forEach((event) => {
+      document.removeEventListener(event, this.onActivity);
+    });
+    clearInterval(this.interval);
+    this.interval = null;
+    if (!this.isVisible) {
+      this.isVisible = true;
+      this.element.style.visibility = 'visible';
+    }
+  }
+}
+
 export default class View {
 
   constructor() {
     this.channelId = document.querySelector("#channelId").value;
     this.clientId = document.querySelector("#clientId").value;
     this.password = document.querySelector("#password").value;
+    this._navBar = document.querySelector("#nav-bar");
     this._navMenu = document.querySelector("#nav-menu");
     this._navStatus = document.querySelector("#nav-status");
     this._modalContent = document.querySelector("#modal-content");
     this._modalControl = document.querySelector("#modal-control");
     this._modalOverlay = document.querySelector("#modal-overlay");
     this._videoElement = document.querySelector("#video");
+    this._activityWatcher = new ActivityWatcher(this._navBar);
   }
 
   // Content management methods.
 
-  setStatusMessage(message) {
-    this._navStatus.textContent = message;
+  startActivityWatcher() {
+    this._activityWatcher.startWatching();
+  }
+
+  stopActivityWatcher() {
+    this._activityWatcher.stopWatching();
+  }
+
+  setNavStatusContent(...elements) {
+    this._setContent(this._navStatus, ...elements);
   }
 
   setNavMenuContent(...elements) {
@@ -77,7 +132,7 @@ export default class View {
     this._modalControl.checked = false;
   }
 
-  isModalShown() {
+  isModalVisible() {
     return this._modalControl.checked;
   }
 

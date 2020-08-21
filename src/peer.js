@@ -123,7 +123,15 @@ export default class Peer {
     this.peersButton = this._peersButton();
     this.view.setNavMenuContent(this.peersButton);
     this.view.setModalContent(...this.peers.getContent());
+    this.view.setNavStatusContent(this._peerName());
     this.view.showModal();
+  }
+
+  _peerName() {
+    const label = document.createElement('label');
+    label.textContent = this.view.clientId.substr(0, 5);
+    label.classList.add('pseudo', 'button');
+    return label;
   }
 
   _peersButton() {
@@ -248,15 +256,16 @@ export default class Peer {
     if (this.connection && this.connection.peerId === peerId) {
       this.view.hideModal();
       this.view.setNavMenuContent(this._disconnectButton(peerId));
+      this.view.startActivityWatcher();
       this.connection.init(trackHandler, candidateHandler, offerHandler);
       this.connection.addTracks();
     }
   }
 
   _closeConnection(peerId) {
-    logger.info(peerId);
     this.view.setModalContent(...this.peers.getContent());
     this.view.setNavMenuContent(this.peersButton);
+    this.view.stopActivityWatcher();
     this.view.removeTracks();
     this.client.sendInfoMsg(peerId, 'close');
     this.client.publishPresence(true);
@@ -310,7 +319,7 @@ export default class Peer {
 
   _handleOffer(peerId) {
     this.peers.addOffer(peerId, this._acceptConnection.bind(this));
-    if (!this.connection && !this.view.isModalShown()) {
+    if (!this.connection && !this.view.isModalVisible()) {
       this.view.showModal();
     }
   }
