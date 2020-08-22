@@ -1,52 +1,62 @@
 /*
  *  Copyright (c) 2020 Peter Christensen. All Rights Reserved.
  *  CC BY-NC-ND 4.0.
- *
- * This class provides an interface for a JavaScript application
- * to interact with the page served by the call control and
- * application server.
  */
 class ActivityWatcher {
 
-  constructor(element) {
-    this.element = element;
-    this.isVisible = true;
-    this.expired = 0;
-    this.maxInactivity = 2;
+  constructor(...elements) {
+    this.elements = elements;
     this.activityEvents = ['mousemove', 'touchstart'];
-    this.interval = null;
+    this.expired = 0;
+    this.interval = 1000;
+    this.intervalId = null;
+    this.maxInactivity = 4000;
+    this.isVisible = true;
   }
 
-  onActivity() {
+  _hideElements() {
+    this.isVisible = false;
+    this.elements.forEach((element) => {
+      element.style.visibility = 'hidden';
+    });
+  }
+
+  _showElements() {
+    this.isVisible = true;
+    this.elements.forEach((element) => {
+      element.style.visibility = 'visible';
+    });
+  }
+
+  _onActivity() {
     this.expired = 0;
     if (!this.isVisible) {
-      this.isVisible = true;
-      this.element.style.visibility = 'visible';
+      this._showElements();
     }
   }
 
   startWatching() {
-    this.interval = setInterval(() => {
-      this.expired++;
-      if (this.isVisible && this.expired > this.maxInactivity) {
-        this.isVisible = false;
-        this.element.style.visibility = 'hidden';
-      }
-    }, 1000);
-    this.activityEvents.forEach((event) => {
-      document.addEventListener(event, this.onActivity.bind(this));
-    });
+    if (!this.intervalId) {
+      this.intervalId = setInterval(() => {
+        this.expired += this.interval;
+        if (this.isVisible && this.expired > this.maxInactivity) {
+          this._hideElements();
+        }
+      }, this.interval);
+      this.activityEvents.forEach((eventType) => {
+        document.addEventListener(eventType, this._onActivity.bind(this));
+      });
+    }
   }
 
   stopWatching() {
-    this.activityEvents.forEach((event) => {
-      document.removeEventListener(event, this.onActivity);
+    this.activityEvents.forEach((eventType) => {
+      document.removeEventListener(eventType, this._onActivity);
     });
-    clearInterval(this.interval);
-    this.interval = null;
+    clearInterval(this.intervalId);
+    this.intervalId = null;
     if (!this.isVisible) {
-      this.isVisible = true;
-      this.element.style.visibility = 'visible';
+      this._showElements();
     }
   }
 }
@@ -54,31 +64,54 @@ class ActivityWatcher {
 export default class View {
 
   constructor() {
-    this.channelId = document.querySelector("#channelId").value;
-    this.clientId = document.querySelector("#clientId").value;
-    this.password = document.querySelector("#password").value;
-    this._navBar = document.querySelector("#nav-bar");
-    this._navMenu = document.querySelector("#nav-menu");
-    this._navStatus = document.querySelector("#nav-status");
-    this._modalContent = document.querySelector("#modal-content");
-    this._modalControl = document.querySelector("#modal-control");
-    this._modalOverlay = document.querySelector("#modal-overlay");
-    this._videoElement = document.querySelector("#video");
+    this.channelId = document.querySelector('#channelId').value;
+    this.clientId = document.querySelector('#clientId').value;
+    this.password = document.querySelector('#password').value;
+    this._navBar = document.querySelector('#nav-bar');
+    this._navMenu = document.querySelector('#nav-menu');
+    this._navStatus = document.querySelector('#nav-status');
+    this._modalContent = document.querySelector('#modal-content');
+    this._modalControl = document.querySelector('#modal-control');
+    this._modalOverlay = document.querySelector('#modal-overlay');
+    this._videoElement = document.querySelector('#video');
+    this._defaultBackgroundColor = this._videoElement.style.backgroundColor;
     this._activityWatcher = new ActivityWatcher(this._navBar);
   }
 
   // Content management methods.
 
-  startActivityWatcher() {
+  addTrack(track) {
+    if (!this._videoElement.srcObject) {
+      this._videoElement.srcObject = new MediaStream();
+    }
+    this._videoElement.srcObject.addTrack(track);
+  }
+
+  startVideo() {
     this._activityWatcher.startWatching();
+    this._videoElement.style.objectFit = 'contain';
+    this._videoElement.style.backgroundColor = 'black';
   }
 
-  stopActivityWatcher() {
+  stopVideo() {
     this._activityWatcher.stopWatching();
+    if (this._videoElement.srcObject) {
+      for (const track of this._videoElement.srcObject.getTracks()) {
+        track.stop();
+      }
+      this._videoElement.srcObject = null;
+    }
+    this._videoElement.style.objectFit = 'cover';
+    this._videoElement.style.backgroundColor = this._defaultBackgroundColor;
   }
 
-  setNavStatusContent(...elements) {
-    this._setContent(this._navStatus, ...elements);
+  setNavStatus(message) {
+    if (!this.navStatusLabel) {
+      this.navStatusLabel = document.createElement('label');
+      this.navStatusLabel.classList.add('pseudo');
+      this._setContent(this._navStatus, this.navStatusLabel);
+    }
+    this.navStatusLabel.textContent = message;
   }
 
   setNavMenuContent(...elements) {
@@ -103,15 +136,15 @@ export default class View {
   }
 
   getModalHeader(title, hasCloseControl = true) {
-    const heading = document.createElement("h3");
+    const heading = document.createElement('h3');
     heading.textContent = title;
-    const header = document.createElement("header");
+    const header = document.createElement('header');
     header.append(heading);
     if (hasCloseControl) {
-      const label = document.createElement("label");
-      label.innerHTML = "&times;";
-      label.classList.add("close");
-      label.setAttribute("for", "modal-control");
+      const label = document.createElement('label');
+      label.innerHTML = '&times;';
+      label.classList.add('close');
+      label.setAttribute('for', 'modal-control');
       header.append(label);
     }
     return header;
@@ -121,10 +154,10 @@ export default class View {
     this._modalControl.checked = true;
     if (disableControl) {
       this._modalControl.disabled = true;
-      this._modalOverlay.classList.add("disabled");
+      this._modalOverlay.classList.add('disabled');
     } else {
       this._modalControl.disabled = false;
-      this._modalOverlay.classList.remove("disabled");
+      this._modalOverlay.classList.remove('disabled');
     }
   }
 
@@ -134,23 +167,5 @@ export default class View {
 
   isModalVisible() {
     return this._modalControl.checked;
-  }
-
-  // Track mangement methods.
-
-  addTrack(track) {
-    if (!this._videoElement.srcObject) {
-      this._videoElement.srcObject = new MediaStream();
-    }
-    this._videoElement.srcObject.addTrack(track);
-  }
-
-  removeTracks() {
-    if (this._videoElement.srcObject) {
-      for (const track of this._videoElement.srcObject.getTracks()) {
-        track.stop();
-      }
-      this._videoElement.srcObject = null;
-    }
   }
 }

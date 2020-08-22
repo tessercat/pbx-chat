@@ -121,17 +121,10 @@ export default class Peer {
     this.connection = null;
     this.peers = new PeersDialog(this.view);
     this.peersButton = this._peersButton();
+    this.view.setNavStatus(this.view.clientId.substr(0, 5));
     this.view.setNavMenuContent(this.peersButton);
     this.view.setModalContent(...this.peers.getContent());
-    this.view.setNavStatusContent(this._peerName());
     this.view.showModal();
-  }
-
-  _peerName() {
-    const label = document.createElement('label');
-    label.textContent = this.view.clientId.substr(0, 5);
-    label.classList.add('pseudo', 'button');
-    return label;
   }
 
   _peersButton() {
@@ -189,7 +182,7 @@ export default class Peer {
   }
 
   disconnect() {
-    this.view.removeTracks();
+    this.view.stopVideo();
     if (this.connection) {
       this.connection.close();
       this.connection = null;
@@ -223,6 +216,7 @@ export default class Peer {
 
   _acceptConnection(peerId) {
     const onSuccess = () => {
+      this.client.publishPresence(false);
       this.client.sendInfoMsg(this.connection.peerId, 'accept');
       this._openConnection(peerId);
     };
@@ -256,7 +250,7 @@ export default class Peer {
     if (this.connection && this.connection.peerId === peerId) {
       this.view.hideModal();
       this.view.setNavMenuContent(this._disconnectButton(peerId));
-      this.view.startActivityWatcher();
+      this.view.startVideo();
       this.connection.init(trackHandler, candidateHandler, offerHandler);
       this.connection.addTracks();
     }
@@ -265,8 +259,7 @@ export default class Peer {
   _closeConnection(peerId) {
     this.view.setModalContent(...this.peers.getContent());
     this.view.setNavMenuContent(this.peersButton);
-    this.view.stopActivityWatcher();
-    this.view.removeTracks();
+    this.view.stopVideo();
     this.client.sendInfoMsg(peerId, 'close');
     this.client.publishPresence(true);
     if (this.connection && this.connection.peerId === peerId) {
