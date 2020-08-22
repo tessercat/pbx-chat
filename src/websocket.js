@@ -23,7 +23,7 @@ export default class MyWebSocket {
     return true;
   }
 
-  setRetryTimer(...handlers) {
+  _setRetryTimer(...handlers) {
     const delay = this.retryCount * this.retryBackoff > this.retryMaxWait
       ? this.retryMaxWait
       : this.retryCount * this.retryBackoff;
@@ -56,7 +56,7 @@ export default class MyWebSocket {
             this.isConnecting
             || (this.socket && !this.isDisconnecting)) {
           this.isConnecting = false;
-          this.setRetryTimer(...arguments);
+          this._setRetryTimer(...arguments);
         }
       }
       socket.onmessage = (event) => {
