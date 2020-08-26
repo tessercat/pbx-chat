@@ -208,6 +208,7 @@ export default class Peer {
       this.view.showAlert(error.message);
     };
     if (!this.connection) {
+      this.view.hideModal();
       this.connection = new Connection(true);
       this.connection.peerId = peerId;
       this.connection.initUserMedia(onSuccess, onError);
@@ -226,6 +227,7 @@ export default class Peer {
       this.view.showAlert(error.message);
     };
     if (!this.connection) {
+      this.view.hideModal();
       this.connection = new Connection(false);
       this.connection.peerId = peerId;
       this.connection.initUserMedia(onSuccess, onError);
@@ -236,22 +238,31 @@ export default class Peer {
     const trackHandler = (track) => {
       this.view.addTrack(track);
       logger.info('Added remote', track.kind);
-    }
+    };
     const candidateHandler = (jsonCandidate) => {
       const stringCandidate = JSON.stringify(jsonCandidate);
       this.client.sendInfoMsg(this.connection.peerId, stringCandidate);
       logger.info('Sent candidate');
-    }
+    };
+    const failureHandler = () => {
+      this._closeConnection(peerId);
+      this.view.showAlert('Connection failed.');
+    };
     const offerHandler = (jsonSdp) => {
       const stringSdp = JSON.stringify(jsonSdp);
       this.client.sendInfoMsg(this.connection.peerId, stringSdp);
       logger.info('Sent description');
-    }
+    };
     if (this.connection && this.connection.peerId === peerId) {
       this.view.hideModal();
       this.view.setNavMenuContent(this._disconnectButton(peerId));
       this.view.startVideo();
-      this.connection.init(trackHandler, candidateHandler, offerHandler);
+      this.connection.init(
+        trackHandler,
+        candidateHandler,
+        failureHandler,
+        offerHandler
+      );
       this.connection.addTracks();
     }
   }
@@ -354,7 +365,7 @@ export default class Peer {
         const stringSdp = JSON.stringify(newJsonSdp);
         this.client.sendInfoMsg(peerId, stringSdp);
         logger.info('Sent SDP');
-      }
+      };
       this.connection.addSdp(jsonSdp, sdpHandler).then(() => {
       }).catch(error => {
         logger.error(error);

@@ -14,9 +14,9 @@ export default class Connection {
     this.ignoreOffer = false;
   }
 
-  init(trackHandler, candidateHandler, sdpHandler) {
+  init(trackHandler, candidateHandler, failureHandler, sdpHandler) {
     const configuration = {
-      iceServers: [{urls: `stun:${location.hostname}`}]
+      iceServers: [{urls: `stun:${location.hostname}`}],
     }
     this.pc = new RTCPeerConnection(configuration);
     this.pc.ontrack = (event) => {
@@ -27,6 +27,10 @@ export default class Connection {
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
         candidateHandler(event.candidate.toJSON());
+      } else {
+        if (this.pc.connectionState === 'failed') {
+          failureHandler();
+        }
       }
     };
     this.pc.onnegotiationneeded = async () => {
