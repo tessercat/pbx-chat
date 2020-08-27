@@ -121,7 +121,6 @@ export default class Peer {
     this.connection = null;
     this.peers = new PeersDialog(this.view);
     this.peersButton = this._peersButton();
-    this.view.setNavStatus(this.view.clientId.substr(0, 5));
     this.view.setNavMenuContent(this.peersButton);
     this.view.setModalContent(...this.peers.getContent());
     this.view.showModal();
@@ -169,16 +168,13 @@ export default class Peer {
   }
 
   connect() {
-    this.client = new Client(this.view.clientId);
+    this.client = new Client(this.view.channelId);
+    this.view.setNavStatus(this.view.clientId.substr(0, 5));
     this.client.setMessageHandlers(
       this._presenceEventHandler.bind(this),
       this._peerMessageHandler.bind(this)
     );
-    this.client.connect(
-      this.view.clientId,
-      this.view.password,
-      this.view.channelId,
-    );
+    this.client.connect(this.view.clientId, this.view.password);
   }
 
   disconnect() {

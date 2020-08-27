@@ -30,8 +30,8 @@ class ResponseCallbacks {
 
 export default class Client {
 
-  constructor(clientId) {
-    this.clientId = clientId;
+  constructor(channelId) {
+    this.channelId = channelId;
     this.ws = new MyWebSocket();
     this.keepaliveTimer = null;
     this.currentRequestId = 0;
@@ -47,10 +47,9 @@ export default class Client {
     this.infoMsgHandler = infoMsgHandler;
   }
 
-  connect(username, password, channelId) {
-    this.username = username;
+  connect(clientId, password) {
+    this.clientId = clientId;
     this.password = password;
-    this.channelId = channelId;
     this.ws.connect(
       this._wsConnectHandler.bind(this),
       this._wsDisconnectHandler.bind(this),
@@ -241,7 +240,7 @@ export default class Client {
       logger.error('Bad login', message);
     };
     this._send('login', {
-      login: this.username,
+      login: this.clientId,
       passwd: this.password
     }, onSuccess, onError);
   }
