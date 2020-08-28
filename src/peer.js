@@ -277,6 +277,7 @@ export default class Peer {
       this.connection.close();
       this.connection = null;
     }
+    this.view.showModal();
   }
 
   // Peer-to-peer calling protocol message handlers.
