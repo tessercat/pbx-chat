@@ -74,6 +74,7 @@ export default class View {
     this._modalControl = document.querySelector('#modal-control');
     this._modalOverlay = document.querySelector('#modal-overlay');
     this._videoElement = document.querySelector('#video');
+    this._videoElement.style.display = 'unset';
     this._defaultBackgroundColor = this._videoElement.style.backgroundColor;
     this._activityWatcher = new ActivityWatcher(this._navBar);
   }
