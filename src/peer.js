@@ -207,7 +207,9 @@ export default class Peer {
       this.view.hideModal();
       this.connection = new Connection(true);
       this.connection.peerId = peerId;
-      this.connection.initUserMedia(onSuccess, onError);
+      this.connection.initUserMedia(
+        onSuccess, onError, true, {facingMode: 'user'}
+      );
     }
   }
 
@@ -226,7 +228,9 @@ export default class Peer {
       this.view.hideModal();
       this.connection = new Connection(false);
       this.connection.peerId = peerId;
-      this.connection.initUserMedia(onSuccess, onError);
+      this.connection.initUserMedia(
+        onSuccess, onError, true, {facingMode: 'user'}
+      );
     }
   }
 

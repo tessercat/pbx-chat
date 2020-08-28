@@ -95,7 +95,7 @@ export default class Connection {
     });
   }
 
-  initUserMedia(successHandler, errorHandler, audio = true, video = true) {
+  initUserMedia(successHandler, errorHandler, audio, video) {
     const onSuccess = (stream) => {
       this.userMedia = stream;
       successHandler(stream);
