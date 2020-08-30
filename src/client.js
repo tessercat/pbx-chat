@@ -42,9 +42,10 @@ export default class Client {
 
   // Public methods.
 
-  setMessageHandlers(presenceEventHandler, infoMsgHandler) {
+  setMessageHandlers(presenceEventHandler, infoMsgHandler, puntHandler) {
     this.presenceEventHandler = presenceEventHandler;
     this.infoMsgHandler = infoMsgHandler;
+    this.puntHandler = puntHandler;
   }
 
   connect(clientId, password) {
@@ -58,10 +59,12 @@ export default class Client {
   }
 
   disconnect() {
-    this._publishDisconnect();
-    this.ws.disconnect(
-      this._wsDisconnectHandler.bind(this),
-    );
+    if (this.ws.isConnected()) {
+      this._publishDisconnect();
+      this.ws.disconnect(
+        this._wsDisconnectHandler.bind(this),
+      );
+    }
   }
 
   publishPresence(isAvailable) {
@@ -207,6 +210,9 @@ export default class Client {
       } else {
         logger.error('Unhandled verto.event', event);
       }
+    } else if (method === 'verto.punt') {
+      this.ws.disconnect(() => {});
+      this.puntHandler(event);
     } else {
       logger.error('Unhandled event', event);
     }

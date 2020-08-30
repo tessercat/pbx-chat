@@ -172,7 +172,8 @@ export default class Peer {
     this.view.setNavStatus(this.view.clientId.substr(0, 5));
     this.client.setMessageHandlers(
       this._presenceEventHandler.bind(this),
-      this._peerMessageHandler.bind(this)
+      this._peerMessageHandler.bind(this),
+      this._puntHandler.bind(this)
     );
     this.client.connect(this.view.clientId, this.view.password);
   }
@@ -320,6 +321,12 @@ export default class Peer {
         logger.error('Received unhandled JSON message', peerId, jsonData);
       }
     }
+  }
+
+  _puntHandler(event) {
+    logger.info('Punted');
+    this.view.hideModal();
+    this.view.showAlert('Punted');
   }
 
   _handleOffer(peerId) {
