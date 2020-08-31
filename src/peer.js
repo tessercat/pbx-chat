@@ -227,6 +227,7 @@ export default class Peer {
     };
     if (!this.connection) {
       this.view.hideModal();
+      this.peers.removeOffer(peerId);
       this.connection = new Connection(false);
       this.connection.peerId = peerId;
       this.connection.initUserMedia(
@@ -323,10 +324,10 @@ export default class Peer {
     }
   }
 
-  _puntHandler(event) {
+  _puntHandler() {
     logger.info('Punted');
     this.view.hideModal();
-    this.view.showAlert('Punted');
+    this.view.showAlert('Punt!');
   }
 
   _handleOffer(peerId) {
