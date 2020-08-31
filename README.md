@@ -1,2 +1,6 @@
-A FreeSWITCH verto endpoint
-JSON-RPC 2.0 WebSocket client.
+This node project
+is a FreeSWITCH verto endpoint
+WebSocket client
+to support the features of the project
+documented at
+[pbx-docs](https://github.com/tessercat/pbx-docs).
