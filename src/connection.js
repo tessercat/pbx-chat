@@ -10,8 +10,20 @@ export default class Connection {
     this.isPolite = isPolite;
     this.userMedia = null;
     this.pc = null;
+    this.statsInterval = 10000;
+    this.statsIntervalId = null;
     this.makingOffer = false;
     this.ignoreOffer = false;
+  }
+
+  _logStats() {
+    this.pc.getStats(null).then(stats => {
+      stats.forEach(report => {
+        if (report.type === "inbound-rtp") {
+          logger.debug(report.kind, report['bytesReceived']);
+        }
+      });
+    });
   }
 
   init(trackHandler, candidateHandler, failureHandler, sdpHandler) {
@@ -19,6 +31,9 @@ export default class Connection {
       iceServers: [{urls: `stun:${location.hostname}`}],
     }
     this.pc = new RTCPeerConnection(configuration);
+    this.statsIntervalId = setInterval(
+      this._logStats.bind(this), this.statsInterval
+    );
     this.pc.ontrack = (event) => {
       if (event.track) {
         trackHandler(event.track);
@@ -55,6 +70,7 @@ export default class Connection {
 
   close() {
     if (this.pc) {
+      clearInterval(this.statsIntervalId);
       this.pc.close();
       this.pc = null;
     }
