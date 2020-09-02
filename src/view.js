@@ -81,8 +81,8 @@ class AlertModal {
 
   _footer(view) {
     const button = document.createElement('button');
-    button.textContent = 'Close';
-    button.setAttribute('title', 'Close this alert');
+    button.textContent = 'OK';
+    button.setAttribute('title', 'Acknowledge this alert');
     button.style.float = 'right';
     button.addEventListener('click', () => {
       view.hideModal();

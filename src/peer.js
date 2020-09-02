@@ -359,7 +359,12 @@ export default class Peer {
   _puntHandler() {
     logger.info('Punted');
     this.view.hideModal();
-    this.view.showAlert('Punt!');
+    this.view.showAlert(
+      'Offline. '
+      + 'This peer has been removed from the channel '
+      + 'because it has logged in from elsewhere '
+      + 'or for abuse.'
+    );
   }
 
   _handleOffer(peerId) {
