@@ -9,7 +9,7 @@ export default class MyWebSocket {
   constructor() {
     this.socket = null;
     this.isConnecting = false;
-    this.isDisconnecting = false;
+    this.isHalted = false;
     this.retryCount = 0;
     this.retryBackoff = 5000;
     this.retryMaxWait = 30000;
@@ -37,6 +37,7 @@ export default class MyWebSocket {
   connect(connectHandler, disconnectHandler, messageHandler) {
     if (!this.isConnected() && !this.isConnecting) {
       this.isConnecting = true;
+      this.isHalted = false;
       const socket = new WebSocket(
         `wss://${location.host}${location.pathname}/clients`
       );
@@ -52,9 +53,7 @@ export default class MyWebSocket {
       socket.onclose = (event) => {
         disconnectHandler(event);
         clearTimeout(this.retryTimer);
-        if (
-            this.isConnecting
-            || (this.socket && !this.isDisconnecting)) {
+        if (this.isConnecting || (this.socket && !this.isHalted)) {
           this.isConnecting = false;
           this._setRetryTimer(...arguments);
         }
@@ -65,24 +64,28 @@ export default class MyWebSocket {
     }
   }
 
+  halt() {
+    clearTimeout(this.retryTimer);
+    this.isHalted = true;
+  }
+
   disconnect(disconnectHandler) {
     clearTimeout(this.retryTimer);
     this.retryCount = 0;
     this.isConnecting = false;
-    this.isDisconnecting = true;
+    this.isHalted = true;
     if (this.socket) {
       this.socket.onclose = null;
       this.socket.onmessage = null;
       this.socket.onopen = null;
+      if (this.isConnected()) {
+        this.socket.onclose = (event) => {
+          disconnectHandler(event);
+        };
+        this.socket.close();
+      }
+      this.socket = null;
     }
-    if (this.isConnected()) {
-      this.socket.onclose = (event) => {
-        this.isDisconnecting = false;
-        disconnectHandler(event);
-      };
-      this.socket.close();
-    }
-    this.socket = null;
   }
 
   send(message) {

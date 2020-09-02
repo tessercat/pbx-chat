@@ -48,6 +48,11 @@ export default class Client {
     this.puntHandler = puntHandler;
   }
 
+  setConnectionHandlers(connectHandler, disconnectHandler) {
+    this.connectHandler = connectHandler;
+    this.disconnectHandler = disconnectHandler;
+  }
+
   connect(clientId, password) {
     this.clientId = clientId;
     this.password = password;
@@ -64,6 +69,8 @@ export default class Client {
       this.ws.disconnect(
         this._wsDisconnectHandler.bind(this),
       );
+    } else {
+      this.ws.halt();
     }
   }
 
@@ -96,7 +103,7 @@ export default class Client {
   // Websocket event handlers.
 
   _wsConnectHandler() {
-    logger.info('Connected');
+    this.connectHandler();
     clearInterval(this.keepaliveTimer);
     this._cleanResponseCallbacks();
     this.keepaliveTimer = setInterval(() => {
@@ -109,7 +116,7 @@ export default class Client {
   _wsDisconnectHandler() {
     clearInterval(this.keepaliveTimer);
     this._cleanResponseCallbacks();
-    logger.info('Disconnected');
+    this.disconnectHandler();
   }
 
   _wsMessageHandler(event) {
@@ -211,7 +218,7 @@ export default class Client {
         logger.error('Unhandled verto.event', event);
       }
     } else if (method === 'verto.punt') {
-      this.ws.disconnect(() => {});
+      this.ws.halt();
       this.puntHandler(event);
     } else {
       logger.error('Unhandled event', event);

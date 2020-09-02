@@ -36,6 +36,15 @@ class PeersDialog {
     return [this.header, this.peers, this.footer];
   }
 
+  reset() {
+    Object.keys(this.offers).forEach(peerId => {
+      this.removeOffer(peerId);
+    });
+    Object.keys(this.available).forEach(peerId => {
+      this.removePeer(peerId);
+    });
+  }
+
   addPeer(peerId, offerHandler) {
     if (this.available[peerId]) {
       return;
@@ -121,9 +130,15 @@ export default class Peer {
     this.connection = null;
     this.peers = new PeersDialog(this.view);
     this.peersButton = this._peersButton();
-    this.view.setNavMenuContent(this.peersButton);
-    this.view.setModalContent(...this.peers.getContent());
-    this.view.showModal();
+    this.offlineLabel = this._offlineLabel();
+    this.view.setNavMenuContent(this.offlineLabel);
+  }
+
+  _offlineLabel() {
+    const label = document.createElement('label');
+    label.textContent = 'Offline';
+    label.classList.add('pseudo', 'button');
+    return label;
   }
 
   _peersButton() {
@@ -170,6 +185,10 @@ export default class Peer {
   connect() {
     this.client = new Client(this.view.channelId);
     this.view.setNavStatus(this.view.clientId.substr(0, 5));
+    this.client.setConnectionHandlers(
+      this._connectHandler.bind(this),
+      this._disconnectHandler.bind(this)
+    );
     this.client.setMessageHandlers(
       this._presenceEventHandler.bind(this),
       this._peerMessageHandler.bind(this),
@@ -280,7 +299,22 @@ export default class Peer {
     this.view.showModal();
   }
 
-  // Peer-to-peer calling protocol message handlers.
+  // Client conection and protocol message handlers.
+
+  _connectHandler() {
+    logger.info('Connected');
+    this.view.setNavMenuContent(this.peersButton);
+    if (!this.connection) {
+      this.view.setModalContent(...this.peers.getContent());
+      this.view.showModal();
+    }
+  }
+
+  _disconnectHandler() {
+    logger.info('Disconnected');
+    this.peers.reset();
+    this.view.setNavMenuContent(this.offlineLabel);
+  }
 
   _presenceEventHandler(peerId, isAvailable) {
     if (isAvailable) {
