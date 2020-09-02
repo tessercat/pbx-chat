@@ -12,8 +12,14 @@ if (adapter.browserDetails.browser.startsWith("Not")) {
     window.peer = new Peer();
     window.peer.connect();
   });
-  window.addEventListener('beforeunload', function () {
-    window.peer.disconnect();
-    return false;
+  window.addEventListener('beforeunload', function (event) {
+    if (window.peer) {
+      if (window.peer.connection) {
+        event.preventDefault();
+        event.returnValue = '';
+      } else {
+        window.peer.disconnect();
+      }
+    }
   });
 }
