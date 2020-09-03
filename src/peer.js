@@ -299,7 +299,7 @@ export default class Peer {
     this.view.showModal();
   }
 
-  // Client conection and protocol message handlers.
+  // Client connection handlers.
 
   _connectHandler() {
     logger.info('Connected');
@@ -314,7 +314,10 @@ export default class Peer {
     logger.info('Disconnected');
     this.peers.reset();
     this.view.setNavMenuContent(this.offlineLabel);
+    this.view.hideModal();
   }
+
+  // Peer-to-peer protocol event/message handlers.
 
   _presenceEventHandler(peerId, isAvailable) {
     if (isAvailable) {
@@ -362,7 +365,8 @@ export default class Peer {
     this.view.showAlert(
       'Offline. '
       + 'This peer has been removed from the channel '
-      + 'because it has logged in from elsewhere '
+      + 'because it logged in from elsewhere, '
+      + 'because the channel is full, '
       + 'or for abuse.'
     );
   }

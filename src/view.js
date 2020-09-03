@@ -85,7 +85,8 @@ class AlertModal {
     button.setAttribute('title', 'Acknowledge this alert');
     button.style.float = 'right';
     button.addEventListener('click', () => {
-      view.hideModal();
+      view._isAlertActive = false;
+      view._modalControl.checked = false;
       view.setModalContent(...view._oldModalContent);
     });
     const footer = document.createElement('footer');
@@ -112,6 +113,7 @@ export default class View {
     this._navMenu = document.querySelector('#nav-menu');
     this._navStatus = document.querySelector('#nav-status');
     this._alertModal = new AlertModal(this);
+    this._isAlertActive = false;
     this._modalContent = document.querySelector('#modal-content');
     this._modalControl = document.querySelector('#modal-control');
     this._modalOverlay = document.querySelector('#modal-overlay');
@@ -175,6 +177,7 @@ export default class View {
   }
 
   showAlert(message) {
+    this._isAlertActive = true;
     this._alertModal.setMessage(message);
     this._oldModalContent = [...this._modalContent.children];
     this.setModalContent(...this._alertModal.getContent());
@@ -208,7 +211,9 @@ export default class View {
   }
 
   hideModal() {
-    this._modalControl.checked = false;
+    if (!this._isAlertActive) {
+      this._modalControl.checked = false;
+    }
   }
 
   isModalVisible() {
