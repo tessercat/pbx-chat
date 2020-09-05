@@ -127,6 +127,9 @@ export default class Peer {
 
   constructor() {
     this.view = new View();
+    this.channelId = location.pathname.split('/').pop();
+    this.client = new Client(this.channelId);
+    this._setClientHandlers();
     this.connection = null;
     this.peers = new PeersDialog(this.view);
     this.peersButton = this._peersButton();
@@ -182,19 +185,25 @@ export default class Peer {
     return [section, footer];
   }
 
-  connect() {
-    this.client = new Client(this.view.channelId);
-    this.view.setNavStatus(this.view.clientId.substr(0, 5));
-    this.client.setConnectionHandlers(
+  _setClientHandlers() {
+    this.client.setConnectHandlers(
       this._connectHandler.bind(this),
       this._disconnectHandler.bind(this)
     );
+    this.client.setLoginHandlers(
+      this._loginSuccessHandler.bind(this),
+      this._loginFailureHandler.bind(this),
+      this._clientReadyHandler.bind(this)
+    )
     this.client.setMessageHandlers(
       this._presenceEventHandler.bind(this),
       this._peerMessageHandler.bind(this),
       this._puntHandler.bind(this)
     );
-    this.client.connect(this.view.clientId, this.view.password);
+  }
+
+  connect() {
+    this.client.connect();
   }
 
   disconnect() {
@@ -203,9 +212,8 @@ export default class Peer {
       this.connection.close();
       this.connection = null;
     }
-    if (this.client) {
+    if (this.client.isConnected()) {
       this.client.disconnect();
-      this.client = null;
     }
   }
 
@@ -299,7 +307,7 @@ export default class Peer {
     this.view.showModal();
   }
 
-  // Client connection handlers.
+  // Client connect/login handlers.
 
   _connectHandler() {
     logger.info('Connected');
@@ -317,7 +325,20 @@ export default class Peer {
     this.view.hideModal();
   }
 
-  // Peer-to-peer protocol event/message handlers.
+  _loginSuccessHandler() {
+    logger.info('Logged in');
+  }
+
+  _loginFailureHandler(message) {
+    logger.error(message);
+    this.view.showAlert(`Login failed. ${message}.`);
+  }
+
+  _clientReadyHandler(clientId) {
+    this.view.setNavStatus(clientId.substr(0, 5));
+  }
+
+  // Client message handlers.
 
   _presenceEventHandler(peerId, isAvailable) {
     if (isAvailable) {
@@ -364,12 +385,12 @@ export default class Peer {
     this.view.hideModal();
     this.view.showAlert(
       'Offline. '
-      + 'This peer has been removed from the channel '
-      + 'because it logged in from elsewhere, '
-      + 'because the channel is full, '
-      + 'or for abuse.'
+      + 'You\'re logged in from another tab '
+      + 'or the channel is full.'
     );
   }
+
+  // Specific peer message handlers.
 
   _handleOffer(peerId) {
     this.peers.addOffer(peerId, this._acceptConnection.bind(this));

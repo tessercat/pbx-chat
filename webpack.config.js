@@ -11,7 +11,7 @@ module.exports = {
   },
   output: {
     path:  path.resolve(__dirname, 'dist'),
-    filename: "client-[contenthash:5].js",
+    filename: "peer-[contenthash:5].js",
   },
   externals: {
     "webrtc-adapter": "adapter"
