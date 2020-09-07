@@ -2,10 +2,10 @@
  * Copyright (c) 2020 Peter Christensen. All Rights Reserved.
  * CC BY-NC-ND 4.0.
  */
-import Client from './client.js';
-import Connection from './connection.js';
-import View from './view.js';
-import logger from './logger.js';
+import Client from '../client.js';
+import Connection from '../connection.js';
+import View from '../view.js';
+import logger from '../logger.js';
 
 class PeersDialog {
 

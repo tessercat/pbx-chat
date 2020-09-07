@@ -282,7 +282,6 @@ export default class Client {
         logger.error('Unhandled verto.info', event);
       }
     } else if (method === 'verto.event') {
-      logger.info(event);
       if (event.params.sessid === this.sessionId) {
         return;
       }

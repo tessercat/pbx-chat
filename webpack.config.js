@@ -7,7 +7,7 @@ module.exports = {
   mode: "development",
   devtool: false,
   entry: {
-    main: path.resolve(__dirname, 'src/index.js'),
+    main: path.resolve(__dirname, 'src/peer/index.js'),
   },
   output: {
     path:  path.resolve(__dirname, 'dist'),
