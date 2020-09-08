@@ -11,8 +11,8 @@ export default class MyWebSocket {
     this.isConnecting = false;
     this.isHalted = false;
     this.retryCount = 0;
-    this.retryBackoff = 5000;
-    this.retryMaxWait = 30000;
+    this.retryBackoff = 5;
+    this.retryMaxWait = 30;
     this.retryTimer = null;
   }
 
@@ -24,14 +24,15 @@ export default class MyWebSocket {
   }
 
   _setRetryTimer(...handlers) {
-    const delay = this.retryCount * this.retryBackoff > this.retryMaxWait
+    const baseDelay = this.retryCount * this.retryBackoff > this.retryMaxWait
       ? this.retryMaxWait
       : this.retryCount * this.retryBackoff;
-    logger.info(`Waiting ${delay/1000}s after ${this.retryCount} tries`);
+    const delay = baseDelay + (Math.floor(Math.random() * Math.floor(5)) - 2);
+    logger.info(`Waiting ${delay}s after ${this.retryCount} tries`);
     this.retryTimer = setTimeout((...handlers) => {
       this.retryCount += 1;
       this.connect(...handlers);
-    }, delay, ...handlers);
+    }, delay * 1000, ...handlers);
   }
 
   connect(connectHandler, disconnectHandler, messageHandler) {

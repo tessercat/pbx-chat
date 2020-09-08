@@ -7,8 +7,8 @@ import logger from './logger.js';
 
 const CONST = {
   authRequired: -32000,
-  keepaliveInterval: 45000,
-  requestExpiry: 30000,
+  keepaliveInterval: 55,
+  requestExpiry: 30,
 }
 
 class Request {
@@ -158,7 +158,7 @@ export default class Client {
     this._cleanResponseCallbacks();
     this.keepaliveTimer = setInterval(() => {
       this._ping();
-    }, CONST.keepaliveInterval);
+    }, CONST.keepaliveInterval * 1000);
     this.authing = false;
     this._sendRequest('login');
   }
@@ -235,7 +235,7 @@ export default class Client {
     logger.debug('Cleaning up expired response callbacks');
     for (const requestId in this.responseCallbacks) {
       const diff = now - this.responseCallbacks[requestId].sent;
-      if (diff > CONST.requestExpiry) {
+      if (diff > CONST.requestExpiry * 1000) {
         expired.push(requestId);
       }
     }
