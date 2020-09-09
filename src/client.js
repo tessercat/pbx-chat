@@ -7,7 +7,7 @@ import logger from './logger.js';
 
 const CONST = {
   authRequired: -32000,
-  keepaliveInterval: 55,
+  keepaliveInterval: 45,
   requestExpiry: 30,
 }
 
@@ -34,6 +34,7 @@ export default class Client {
     this.channelId = channelId;
     this.ws = new MyWebSocket();
     this.keepaliveTimer = null;
+    this.lastPingDate = null;
     this.currentRequestId = 0;
     this.authing = false;
     this.responseCallbacks = {};
@@ -150,6 +151,7 @@ export default class Client {
   _wsConnectHandler() {
     this.connectHandler();
     clearInterval(this.keepaliveTimer);
+    this.lastPingDate = new Date();
     this._cleanResponseCallbacks();
     this.keepaliveTimer = setInterval(() => {
       this._ping();
@@ -160,8 +162,17 @@ export default class Client {
 
   _wsDisconnectHandler() {
     clearInterval(this.keepaliveTimer);
+    let pingTimeout = false;
+    if (this.lastPingDate) {
+      const diff = new Date() - this.lastPingDate;
+      if (diff > (CONST.keepaliveInterval * 1000) + 10000) {
+        this.ws.halt();
+        pingTimeout = true;
+      }
+    }
+    this.lastPingDate = null;
     this._cleanResponseCallbacks();
-    this.disconnectHandler();
+    this.disconnectHandler(pingTimeout);
   }
 
   _wsMessageHandler(event) {
@@ -202,8 +213,11 @@ export default class Client {
     const onError = (message) => {
       logger.error('Bad ping response', message);
     }
+    const onSuccess = () => {
+      this.lastPingDate = new Date();
+    }
     if (this.isConnected()) {
-      this._sendRequest('echo', {}, null, onError);
+      this._sendRequest('echo', {}, onSuccess, onError);
     }
   }
 

@@ -321,11 +321,18 @@ export default class Peer {
     }
   }
 
-  _disconnectHandler() {
+  _disconnectHandler(pingTimeout) {
     logger.info('Disconnected');
     this.peers.reset();
     this.view.setNavMenuContent(this.offlineLabel);
     this.view.hideModal();
+    if (pingTimeout) {
+      this.view.showAlert(
+        'Offline. '
+        + 'The connection timed out. '
+        + 'Reload to reconnect.'
+      );
+    }
   }
 
   _loginSuccessHandler() {
