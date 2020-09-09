@@ -16,24 +16,11 @@ export default class Connection {
     this.ignoreOffer = false;
   }
 
-  _logStats() {
-    this.pc.getStats(null).then(stats => {
-      stats.forEach(report => {
-        if (report.type === "inbound-rtp") {
-          logger.debug(report.kind, report['bytesReceived']);
-        }
-      });
-    });
-  }
-
-  init(trackHandler, candidateHandler, failureHandler, sdpHandler) {
+  init(trackHandler, candidateHandler, sdpHandler, failureHandler) {
     const configuration = {
       iceServers: [{urls: `stun:${location.hostname}`}],
     }
     this.pc = new RTCPeerConnection(configuration);
-    this.statsIntervalId = setInterval(
-      this._logStats.bind(this), this.statsInterval
-    );
     this.pc.ontrack = (event) => {
       if (event.track) {
         trackHandler(event.track);
@@ -133,12 +120,16 @@ export default class Connection {
 
   // Incoming signal handler methods.
 
-  async addCandidate(jsonCandidate) {
-    try {
-      await this.pc.addIceCandidate(jsonCandidate);
-    } catch (error) {
-      if (!this.ignoreOffer) {
-        logger.error('Error adding remote candidate', error);
+  async addCandidate(jsonCandidate, failureHandler) {
+    if (this.pc.connectionState === 'failed') {
+      failureHandler();
+    } else {
+      try {
+        await this.pc.addIceCandidate(jsonCandidate);
+      } catch (error) {
+        if (!this.ignoreOffer) {
+          logger.error('Error adding remote candidate', error);
+        }
       }
     }
   }

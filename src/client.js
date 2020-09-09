@@ -92,18 +92,13 @@ export default class Client {
   // Session maintenance methods.
 
   _getSessionId(replace = false) {
-    const now = new Date();
     const jsonData = JSON.parse(localStorage.getItem(this.channelId)) || {};
     let sessionId = jsonData.sessionId;
-    if (new Date(jsonData.expires) < now) {
-      sessionId = null;
-    }
     if (replace || !sessionId) {
       const url = URL.createObjectURL(new Blob());
       URL.revokeObjectURL(url);
       sessionId = url.split('/').pop();
       jsonData.sessionId = sessionId;
-      jsonData.expires = now.setDate(now.getDate() + 14);
       localStorage.setItem(this.channelId, JSON.stringify(jsonData));
       logger.info('New session', sessionId);
     }
@@ -231,8 +226,8 @@ export default class Client {
 
   _cleanResponseCallbacks() {
     const expired = [];
-    const now = new Date().setSeconds(-30);
-    logger.debug('Cleaning up expired response callbacks');
+    const now = new Date();
+    logger.debug('Cleaning expired response callbacks');
     for (const requestId in this.responseCallbacks) {
       const diff = now - this.responseCallbacks[requestId].sent;
       if (diff > CONST.requestExpiry * 1000) {
@@ -308,14 +303,19 @@ export default class Client {
 
   // Client to client info messages.
 
-  sendInfoMsg(clientId, body) {
+  sendInfoMsg(clientId, body, log = true) {
     const onError = (message) => {
-      logger.error('Bad response', message);
+      logger.error('Error sending message', message);
+    }
+    const onSuccess = () => {
+      if (log) {
+        logger.info('Sent', body, 'to', clientId);
+      }
     }
     const encoded = this._encodeMessage(body);
     this._sendRequest('verto.info', {
       msg: {to: clientId, body: encoded}
-    }, null, onError);
+    }, onSuccess, onError);
   }
 
   _encodeMessage(str) {

@@ -164,6 +164,7 @@ export default class Peer {
     button.setAttribute('title', 'Close the connection');
     button.addEventListener('click', () => {
       this._closeConnection(peerId);
+      this.view.showModal();
     });
     return button;
   }
@@ -227,11 +228,12 @@ export default class Peer {
       this.view.showModal(true);
     };
     const onError = (error) => {
-      logger.error(error);
+      logger.info('Failed to offer connection to', peerId, error);
       this._closeConnection(peerId);
       this.view.showAlert(error.message);
     };
     if (!this.connection) {
+      logger.info('Offering connection to', peerId);
       this.view.hideModal();
       this.connection = new Connection(true);
       this.connection.peerId = peerId;
@@ -246,18 +248,17 @@ export default class Peer {
       this._openConnection(peerId);
     };
     const onError = (error) => {
-      logger.error(error);
+      logger.error('Error accepting offer from', peerId, error);
       this._closeConnection(peerId);
       this.view.showAlert(error.message);
     };
     if (!this.connection) {
+      logger.info('Accepting offer from', peerId);
       this.view.hideModal();
       this.peers.removeOffer(peerId);
       this.connection = new Connection(false);
       this.connection.peerId = peerId;
-      this.connection.initUserMedia(
-        onSuccess, onError, true, {facingMode: 'user'}
-      );
+      this.connection.initUserMedia(onSuccess, onError, true, true);
     }
   }
 
@@ -268,33 +269,36 @@ export default class Peer {
     };
     const candidateHandler = (jsonCandidate) => {
       const stringCandidate = JSON.stringify(jsonCandidate);
-      this.client.sendInfoMsg(this.connection.peerId, stringCandidate);
+      this.client.sendInfoMsg(this.connection.peerId, stringCandidate, false);
       logger.info('Sent candidate');
-    };
-    const failureHandler = () => {
-      this._closeConnection(peerId);
-      this.view.showAlert('Connection failed.');
     };
     const offerHandler = (jsonSdp) => {
       const stringSdp = JSON.stringify(jsonSdp);
-      this.client.sendInfoMsg(this.connection.peerId, stringSdp);
-      logger.info('Sent description');
+      this.client.sendInfoMsg(this.connection.peerId, stringSdp, false);
+      logger.info('Sent SDP');
+    };
+    const failureHandler = () => {
+      logger.info('ICE failed connecting to', peerId);
+      this._closeConnection(peerId);
+      this.view.showAlert('ICE failed.');
     };
     if (this.connection && this.connection.peerId === peerId) {
+      logger.info('Opening connection to', peerId);
       this.view.hideModal();
       this.view.setNavMenuContent(this._disconnectButton(peerId));
       this.view.startVideo();
       this.connection.init(
         trackHandler,
         candidateHandler,
-        failureHandler,
-        offerHandler
+        offerHandler,
+        failureHandler
       );
       this.connection.addTracks();
     }
   }
 
   _closeConnection(peerId) {
+    logger.info('Closing connection to', peerId);
     this.view.setModalContent(...this.peers.getContent());
     this.view.setNavMenuContent(this.peersButton);
     this.view.stopVideo();
@@ -304,7 +308,6 @@ export default class Peer {
       this.connection.close();
       this.connection = null;
     }
-    this.view.showModal();
   }
 
   // Client connect/login handlers.
@@ -406,8 +409,16 @@ export default class Peer {
   _handleClose(peerId) {
     if (this.connection && this.connection.peerId === peerId) {
       this._closeConnection(peerId);
+      this.view.showModal();
     } else {
       this.peers.removeOffer(peerId);
+    }
+  }
+
+  _handleFailure(peerId) {
+    if (this.connection && this.connection.peerId === peerId) {
+      this._closeConnection(peerId);
+      this.view.showAlert('The other peer failed to connect.');
     }
   }
 
@@ -422,7 +433,12 @@ export default class Peer {
   _handleCandidate(peerId, jsonCandidate) {
     if (this.connection && this.connection.peerId === peerId) {
       logger.info('Received candidate');
-      this.connection.addCandidate(jsonCandidate).then(() => {
+      const failureHandler = () => {
+        logger.info('ICE failed connecting to', peerId);
+        this._closeConnection(peerId);
+        this.view.showAlert('ICE failed.');
+      };
+      this.connection.addCandidate(jsonCandidate, failureHandler).then(() => {
       }).catch(error => {
         logger.error(error);
       });
@@ -434,7 +450,7 @@ export default class Peer {
       logger.debug('Received SDP');
       const sdpHandler = (newJsonSdp) => {
         const stringSdp = JSON.stringify(newJsonSdp);
-        this.client.sendInfoMsg(peerId, stringSdp);
+        this.client.sendInfoMsg(peerId, stringSdp, false);
         logger.info('Sent SDP');
       };
       this.connection.addSdp(jsonSdp, sdpHandler).then(() => {
