@@ -249,7 +249,7 @@ export default class Peer {
     };
     const onError = (error) => {
       logger.error('Error accepting offer from', peerId, error);
-      this._closeConnection(peerId);
+      this._closeConnection(peerId, true);
       this.view.showAlert(error.message);
     };
     if (!this.connection) {
@@ -278,8 +278,8 @@ export default class Peer {
       logger.info('Sent SDP');
     };
     const failureHandler = () => {
-      logger.info('ICE failed connecting to', peerId);
-      this._closeConnection(peerId);
+      logger.error('ICE failed connecting to', peerId);
+      this._closeConnection(peerId, true);
       this.view.showAlert('ICE failed.');
     };
     if (this.connection && this.connection.peerId === peerId) {
@@ -297,12 +297,16 @@ export default class Peer {
     }
   }
 
-  _closeConnection(peerId) {
+  _closeConnection(peerId, sendFail = false) {
     logger.info('Closing connection to', peerId);
     this.view.setModalContent(...this.peers.getContent());
     this.view.setNavMenuContent(this.peersButton);
     this.view.stopVideo();
-    this.client.sendInfoMsg(peerId, 'close');
+    if (sendFail) {
+      this.client.sendInfoMsg(peerId, 'fail');
+    } else {
+      this.client.sendInfoMsg(peerId, 'close');
+    }
     this.client.publishPresence(true);
     if (this.connection && this.connection.peerId === peerId) {
       this.connection.close();
@@ -368,6 +372,8 @@ export default class Peer {
       this._handleAccept(peerId);
     } else if (message === 'close') {
       this._handleClose(peerId);
+    } else if (message === 'fail') {
+      this._handleFail(peerId);
     } else if (message === 'available') {
       this._handlePresenceInfo(peerId, true);
     } else if (message === 'unavailable') {
@@ -422,6 +428,15 @@ export default class Peer {
     }
   }
 
+  _handleFail(peerId) {
+    if (this.connection && this.connection.peerId === peerId) {
+      this._closeConnection(peerId);
+      this.view.showAlert('The other peer failed to connect.');
+    } else {
+      this.peers.removeOffer(peerId);
+    }
+  }
+
   _handleFailure(peerId) {
     if (this.connection && this.connection.peerId === peerId) {
       this._closeConnection(peerId);
@@ -441,8 +456,8 @@ export default class Peer {
     if (this.connection && this.connection.peerId === peerId) {
       logger.info('Received candidate');
       const failureHandler = () => {
-        logger.info('ICE failed connecting to', peerId);
-        this._closeConnection(peerId);
+        logger.error('ICE failed connecting to', peerId);
+        this._closeConnection(peerId, true);
         this.view.showAlert('ICE failed.');
       };
       this.connection.addCandidate(jsonCandidate, failureHandler).then(() => {
