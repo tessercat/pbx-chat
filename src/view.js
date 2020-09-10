@@ -64,10 +64,11 @@ class ActivityWatcher {
 class AlertModal {
 
   constructor(view) {
-    this.header = view.getModalHeader('Alert', false);
+    this.header = view.getModalHeader('Alert');
     this.body = this._messagePanel();
     this.footer = this._footer(view);
     this.messageDiv = this.body.querySelector('#alert-message');
+    this.isActive = false;
   }
 
   _messagePanel() {
@@ -85,9 +86,15 @@ class AlertModal {
     button.setAttribute('title', 'Acknowledge this alert');
     button.style.float = 'right';
     button.addEventListener('click', () => {
-      view.isAlertActive = false;
+      this.isActive = false;
       view.modalControl.checked = false;
-      view.setModalContent(...view._oldModalContent);
+      if (
+          this.oldModal
+          && this.oldModal.hasContent
+          && this.oldModal.hasContent()) {
+        view.showModal(this.oldModal);
+        this.oldModal = null;
+      }
     });
     const footer = document.createElement('footer');
     footer.append(button);
@@ -109,57 +116,14 @@ export default class View {
     this.navBar = document.querySelector('#nav-bar');
     this.navMenu = document.querySelector('#nav-menu');
     this.navStatus = document.querySelector('#nav-status');
-    this.alertModal = new AlertModal(this);
-    this.isAlertActive = false;
+    this.channelInfoPanel = document.querySelector('#channel-info');
     this.modalContent = document.querySelector('#modal-content');
     this.modalControl = document.querySelector('#modal-control');
     this.modalOverlay = document.querySelector('#modal-overlay');
-    this.videoElement = document.querySelector('#video');
-    this.videoElement.style.display = 'unset';
-    this.defaultBackgroundColor = this.videoElement.style.backgroundColor;
+    this.videoElement = document.querySelector('#media-player');
     this.activityWatcher = new ActivityWatcher(this.navBar);
-  }
-
-  addTrack(track) {
-    if (!this.videoElement.srcObject) {
-      this.videoElement.srcObject = new MediaStream();
-    }
-    this.videoElement.srcObject.addTrack(track);
-  }
-
-  startVideo() {
-    this.activityWatcher.startWatching();
-    this.videoElement.style.objectFit = 'contain';
-    this.videoElement.style.backgroundColor = 'black';
-  }
-
-  stopVideo() {
-    this.activityWatcher.stopWatching();
-    if (this.videoElement.srcObject) {
-      for (const track of this.videoElement.srcObject.getTracks()) {
-        track.stop();
-      }
-      this.videoElement.srcObject = null;
-    }
-    this.videoElement.style.objectFit = 'cover';
-    this.videoElement.style.backgroundColor = this.defaultBackgroundColor;
-  }
-
-  setNavStatus(message) {
-    if (!this.navStatusLabel) {
-      this.navStatusLabel = document.createElement('label');
-      this.navStatusLabel.classList.add('pseudo');
-      this._setContent(this.navStatus, this.navStatusLabel);
-    }
-    this.navStatusLabel.textContent = message;
-  }
-
-  setNavMenuContent(...elements) {
-    this._setContent(this.navMenu, ...elements);
-  }
-
-  setModalContent(...elements) {
-    this._setContent(this.modalContent, ...elements);
+    this.alertModal = new AlertModal(this);
+    this.modal = null;
   }
 
   _setContent(container, ...elements) {
@@ -171,20 +135,65 @@ export default class View {
     }
   }
 
-  showAlert(message) {
-    this.isAlertActive = true;
-    this.alertModal.setMessage(message);
-    this._oldModalContent = [...this.modalContent.children];
-    this.setModalContent(...this.alertModal.getContent());
-    this.showModal(true);
+  _setModalContent(modal) {
+    if (modal.enableCloseControl) {
+      this.modalControl.disabled = false;
+      this.modalOverlay.classList.remove('disabled');
+    } else {
+      this.modalControl.disabled = true;
+      this.modalOverlay.classList.add('disabled');
+    }
+    this._setContent(this.modalContent, ...modal.getContent());
   }
 
-  getModalHeader(title, hasCloseControl = true) {
+  addTrack(track) {
+    if (!this.videoElement.srcObject) {
+      this.videoElement.srcObject = new MediaStream();
+    }
+    this.videoElement.srcObject.addTrack(track);
+  }
+
+  showPlayer() {
+    this.activityWatcher.startWatching();
+    this.videoElement.style.display = 'unset';
+    this.channelInfoPanel.style.display = 'none';
+  }
+
+  hidePlayer() {
+    this.activityWatcher.stopWatching();
+    if (this.videoElement.srcObject) {
+      for (const track of this.videoElement.srcObject.getTracks()) {
+        track.stop();
+      }
+      this.videoElement.srcObject = null;
+    }
+    this.videoElement.style.display = 'none';
+    this.channelInfoPanel.style.display = 'unset';
+  }
+
+  setNavStatus(message) {
+    if (!this.navStatusLabel) {
+      this.navStatusLabel = document.createElement('label');
+      this.navStatusLabel.classList.add('pseudo', 'button');
+      this._setContent(this.navStatus, this.navStatusLabel);
+    }
+    this.navStatusLabel.textContent = message;
+  }
+
+  setNavMenuContent(...elements) {
+    this._setContent(this.navMenu, ...elements);
+  }
+
+  setChannelInfoContent(...elements) {
+    this._setContent(this.channelInfoPanel, ...elements);
+  }
+
+  getModalHeader(title, enableCloseControl = false) {
     const heading = document.createElement('h3');
     heading.textContent = title;
     const header = document.createElement('header');
     header.append(heading);
-    if (hasCloseControl) {
+    if (enableCloseControl) {
       const label = document.createElement('label');
       label.innerHTML = '&times;';
       label.classList.add('close');
@@ -194,24 +203,27 @@ export default class View {
     return header;
   }
 
-  showModal(disableControl = false) {
+  showAlert(message) {
+    this.alertModal.setMessage(message);
+    this.alertModal.isActive = true;
+    this.alertModal.oldModal = this.modal;
+    this.modal = null;
+    this._setModalContent(this.alertModal);
     this.modalControl.checked = true;
-    if (disableControl) {
-      this.modalControl.disabled = true;
-      this.modalOverlay.classList.add('disabled');
-    } else {
-      this.modalControl.disabled = false;
-      this.modalOverlay.classList.remove('disabled');
+  }
+
+  showModal(modal) {
+    if (!this.alertModal.isActive && modal !== this.modal) {
+      this.modal = modal;
+      this._setModalContent(modal);
+      this.modalControl.checked = true;
     }
   }
 
   hideModal() {
-    if (!this.isAlertActive) {
+    if (!this.alertModal.isActive) {
+      this.modal = null;
       this.modalControl.checked = false;
     }
-  }
-
-  isModalVisible() {
-    return this.modalControl.checked;
   }
 }

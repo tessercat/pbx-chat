@@ -7,110 +7,157 @@ import Connection from '../connection.js';
 import View from '../view.js';
 import logger from '../logger.js';
 
-class PeersDialog {
+class PeersPanel {
 
-  constructor(view) {
-    this.header = view.getModalHeader('Peers');
-    this.peers = this._peersPanel();
-    this.footer = document.createElement('footer')
-    this.offers = {};
-    this.offersDiv = this.peers.querySelector('#offering-peers');
-    this.available = {};
-    this.availableDiv = this.peers.querySelector('#available-peers');
+  constructor() {
+    this.panel = this._panel();
+    this.statusMsg = this._statusMsg();
+    this.setOffline();
+    this.panel.append(this.statusMsg);
+    this.peers = {};
   }
 
-  _peersPanel() {
-    const section = document.createElement('section');
-    const offering = document.createElement('div');
-    offering.setAttribute('id', 'offering-peers');
-    section.append(offering);
-    const available = document.createElement('div');
-    available.setAttribute('id', 'available-peers');
-    section.append(available);
-    return section;
+  _panel() {
+    const div = document.createElement('div');
+    div.style.marginLeft = 'auto';
+    div.style.marginRight = 'auto';
+    div.style.maxWidth = '600px'
+    div.style.padding = '1em';
+    const mm = matchMedia('(min-width: 600px)');
+    mm.addListener((mm) => {
+      if (mm.matches) {
+        div.style.maxWidth = '600px'
+      } else {
+        div.style.maxWidth = '100%';
+      }
+    });
+    return div;
   }
 
-  // Public methods.
+  _statusMsg() {
+    const p = document.createElement('p');
+    p.style.textAlign = 'center';
+    return p;
+  }
+
+  setOnline() {
+    this.statusMsg.innerHTML = 'Waiting for peers';
+  }
+
+  setOffline() {
+    this.statusMsg.innerHTML = 'Offline';
+  }
 
   getContent() {
-    return [this.header, this.peers, this.footer];
-  }
-
-  reset() {
-    Object.keys(this.offers).forEach(peerId => {
-      this.removeOffer(peerId);
-    });
-    Object.keys(this.available).forEach(peerId => {
-      this.removePeer(peerId);
-    });
+    return [this.panel];
   }
 
   addPeer(peerId, offerHandler) {
-    if (this.available[peerId]) {
+    if (this.peers[peerId]) {
       return;
     }
-    if (this.offers[peerId]) {
-      this.removeOffer(peerId);
+    if (Object.keys(this.peers).length === 0) {
+      this.statusMsg.remove();
     }
     const peerName = peerId.substr(0, 5);
-    const peer = document.createElement('article');
-    peer.classList.add('card');
+    const article = document.createElement('article');
+    article.classList.add('card');
     const section = document.createElement('section');
-    peer.append(section);
+    section.style.padding = '0.5em';
+    article.append(section);
     const label = document.createElement('label');
     label.textContent = peerName;
     label.classList.add('pseudo', 'button');
     section.append(label);
-    const button = document.createElement('button')
-    button.textContent = 'Call';
-    button.setAttribute('title', `Call ${peerName}`);
-    button.style.float = 'right';
-    button.addEventListener('click', () => {
+    const offerButton = document.createElement('button')
+    offerButton.textContent = 'Call';
+    offerButton.setAttribute('title', `Call ${peerName}`);
+    offerButton.style.float = 'right';
+    offerButton.addEventListener('click', () => {
       offerHandler(peerId);
     });
-    section.append(button);
+    section.append(offerButton);
     logger.info('Adding', peerId);
-    this.available[peerId] = peer;
-    this.availableDiv.append(peer);
+    this.peers[peerId] = article;
+    this.panel.append(article);
   }
 
   removePeer(peerId) {
-    const peer = this.available[peerId];
-    delete this.available[peerId];
+    const peer = this.peers[peerId];
+    delete this.peers[peerId];
     if (peer) {
       logger.info('Removing', peerId);
       peer.remove();
     }
+    if (Object.keys(this.peers).length === 0) {
+      this.panel.append(this.statusMsg);
+    }
+  }
+
+  reset() {
+    Object.keys(this.peers).forEach(peerId => {
+      this.removePeer(peerId);
+    });
+  }
+}
+
+class OffersDialog {
+
+  constructor(view) {
+    this.header = view.getModalHeader('Offers');
+    this.panel = document.createElement('section');
+    this.footer = this._footer(view);
+    this.offers = {};
+  }
+
+  _footer(view) {
+    const ignoreButton = document.createElement('button');
+    ignoreButton.textContent = 'Ignore';
+    ignoreButton.setAttribute('title', 'Ignore all current offers');
+    ignoreButton.style.float = 'right';
+    ignoreButton.addEventListener('click', () => {
+      view.hideModal();
+      this.reset();
+    });
+    const footer = document.createElement('footer');
+    footer.append(ignoreButton);
+    return footer;
+  }
+
+  getContent() {
+    return [this.header, this.panel, this.footer];
+  }
+
+  hasContent() {
+    return Object.keys(this.offers).length > 0;
   }
 
   addOffer(peerId, acceptHandler) {
     if (this.offers[peerId]) {
       return;
     }
-    if (this.available[peerId]) {
-      this.removePeer(peerId);
-    }
     const peerName = peerId.substr(0, 5);
-    const peer = document.createElement('article');
-    peer.classList.add('card')
+    const article = document.createElement('article');
+    article.classList.add('card')
     const section = document.createElement('section');
-    peer.append(section);
+    section.style.padding = '0.5em';
+    article.append(section);
     const label = document.createElement('label');
     label.textContent = peerName;
     label.classList.add('pseudo', 'button');
     section.append(label);
-    const button = document.createElement('button')
-    button.textContent = 'Answer';
-    button.setAttribute('title', `Answer ${peerName}`);
-    button.style.float = 'right';
-    button.classList.add('success');
-    button.addEventListener('click', () => {
+    const acceptButton = document.createElement('button')
+    acceptButton.textContent = 'Answer';
+    acceptButton.setAttribute('title', `Answer ${peerName}`);
+    acceptButton.style.float = 'right';
+    acceptButton.classList.add('success');
+    acceptButton.addEventListener('click', () => {
       acceptHandler(peerId);
     });
-    section.append(button);
+    section.append(acceptButton);
     logger.info('Adding offer from', peerId);
-    this.offers[peerId] = peer;
-    this.offersDiv.append(peer);
+    this.offers[peerId] = article;
+    this.panel.append(article);
   }
 
   removeOffer(peerId) {
@@ -120,6 +167,48 @@ class PeersDialog {
       logger.info('Removing offer from', peerId);
       peer.remove();
     }
+  }
+
+  reset() {
+    Object.keys(this.offers).forEach(peerId => {
+      this.removeOffer(peerId);
+    });
+  }
+}
+
+class OfferingDialog {
+
+  constructor(closeHandler) {
+    this.section = document.createElement('section');
+    this.footer = this._footer(closeHandler);
+    this.peerId = null;
+  }
+
+  _footer(cancelHandler) {
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.setAttribute('title', 'Cancel the offer');
+    cancelButton.style.float = 'right';
+    cancelButton.addEventListener('click', () => {
+      cancelHandler(this.peerId);
+      this.peerId = null;
+    });
+    const footer = document.createElement('footer');
+    footer.append(cancelButton);
+    return footer;
+  }
+
+  setInitializing() {
+    this.section.textContent = 'Starting local media.';
+  }
+
+  setOffering(peerId) {
+    this.peerId = peerId;
+    this.section.textContent = 'Offer sent. Waiting for an answer.';
+  }
+
+  getContent() {
+    return [this.section, this.footer];
   }
 }
 
@@ -131,11 +220,32 @@ export default class Peer {
     this.client = new Client(this.channelId);
     this._setClientHandlers();
     this.connection = null;
-    this.peers = new PeersDialog(this.view);
-    this.peersButton = this._peersButton();
+    this.peersPanel = new PeersPanel();
+    this.view.setChannelInfoContent(...this.peersPanel.getContent());
+    this.offersDialog = new OffersDialog(this.view);
+    this.offeringDialog = new OfferingDialog(this._cancelOffer.bind(this));
+    this.onlineLabel = this._onlineLabel();
     this.offlineLabel = this._offlineLabel();
     this.view.setNavMenuContent(this.offlineLabel);
   }
+
+  connect() {
+    this.client.connect();
+  }
+
+  disconnect() {
+    this.view.hideModal();
+    this.view.hidePlayer();
+    if (this.connection) {
+      this.connection.close();
+      this.connection = null;
+    }
+    if (this.client.isConnected()) {
+      this.client.disconnect();
+    }
+  }
+
+  // Element builders.
 
   _offlineLabel() {
     const label = document.createElement('label');
@@ -144,47 +254,131 @@ export default class Peer {
     return label;
   }
 
-  _peersButton() {
-    const button = document.createElement('button');
-    button.textContent = 'Peers';
-    button.classList.add('pseudo');
-    button.setAttribute('title', 'Show peers list');
-    button.addEventListener('click', () => {
-      if (!this.connection) {
-        this.view.showModal();
-      }
-    });
-    return button;
+  _onlineLabel() {
+    const label = document.createElement('label');
+    label.textContent = 'Online';
+    label.classList.add('pseudo', 'button');
+    return label;
   }
 
   _disconnectButton(peerId) {
     const button = document.createElement('button');
     button.textContent = 'Disconnect';
-    button.classList.add('pseudo');
+    button.classList.add('pseudo', 'button');
     button.setAttribute('title', 'Close the connection');
     button.addEventListener('click', () => {
+      this.client.sendInfoMsg(peerId, 'close');
       this._closeConnection(peerId);
-      this.view.showModal();
     });
     return button;
   }
 
-  _offerDialog(peerId) {
-    const section = document.createElement('section');
-    section.textContent = `Offer sent. Waiting for an answer.`;
-    const button = document.createElement('button');
-    button.textContent = 'Cancel';
-    button.setAttribute('title', 'Cancel the offer');
-    button.style.float = 'right';
-    button.addEventListener('click', () => {
-      this._closeConnection(peerId);
-      this.view.setModalContent(...this.peers.getContent());
-      this.view.showModal();
-    });
-    const footer = document.createElement('footer');
-    footer.append(button);
-    return [section, footer];
+  // Peer-to-peer connection handlers.
+
+  _offerConnection(peerId) {
+    const onSuccess = () => {
+      this.client.sendInfoMsg(this.connection.peerId, 'offer');
+      this.client.publishPresence(false);
+      this.offeringDialog.setOffering(peerId);
+    };
+    const onError = (error) => {
+      logger.info('Failed to offer connection to', peerId, error);
+      this.view.showAlert(error.message);
+      this.connection.close();
+      this.connection = null;
+      this.client.publishPresence(true);
+    };
+    if (!this.connection) {
+      logger.info('Offering connection to', peerId);
+      this.offeringDialog.setInitializing();
+      this.view.showModal(this.offeringDialog);
+      this.connection = new Connection(true);
+      this.connection.peerId = peerId;
+      this.connection.initUserMedia(onSuccess, onError, true, true);
+    }
   }
+
+  _cancelOffer(peerId) {
+    logger.info('Canceling offer to', peerId);
+    this.client.sendInfoMsg(peerId, 'close');
+    this.view.hideModal();
+    this.connection.close();
+    this.connection = null;
+    this.client.publishPresence(true);
+  }
+
+  _acceptConnection(peerId) {
+    const onSuccess = () => {
+      this.client.sendInfoMsg(this.connection.peerId, 'accept');
+      this.client.publishPresence(false);
+      this._openConnection(peerId);
+    };
+    const onError = (error) => {
+      logger.error('Error accepting offer from', peerId, error);
+      this.client.sendInfoMsg(this.connection.peerId, 'fail');
+      this.view.showAlert(error.message);
+      this.view.hidePlayer();
+      this.connection.close();
+      this.connection = null;
+    };
+    if (!this.connection) {
+      logger.info('Accepting offer from', peerId);
+      this.view.showPlayer();
+      this.view.hideModal();
+      this.offersDialog.removeOffer(peerId);
+      this.connection = new Connection(false);
+      this.connection.peerId = peerId;
+      this.connection.initUserMedia(onSuccess, onError, true, true);
+    }
+  }
+
+  _openConnection(peerId) {
+    if (this.connection && this.connection.peerId === peerId) {
+      const trackHandler = (track) => {
+        this.view.addTrack(track);
+        logger.info('Added remote', track.kind);
+      };
+      const candidateHandler = (jsonCandidate) => {
+        const stringCandidate = JSON.stringify(jsonCandidate);
+        this.client.sendInfoMsg(
+          this.connection.peerId, stringCandidate, false
+        );
+        logger.info('Sent candidate');
+      };
+      const offerHandler = (jsonSdp) => {
+        const stringSdp = JSON.stringify(jsonSdp);
+        this.client.sendInfoMsg(this.connection.peerId, stringSdp, false);
+        logger.info('Sent SDP');
+      };
+      const iceHandler = () => {
+        logger.error('ICE failed connecting to', peerId);
+        this.client.sendInfoMsg(peerId, 'fail');
+        this.view.hidePlayer();
+        this.connection.close();
+        this.connection = null;
+        this.view.showAlert('ICE failed.');
+        this.view.setNavMenuContent(this.onlineLabel);
+        this.client.publishPresence(true);
+      };
+      logger.info('Opening connection to', peerId);
+      this.view.setNavMenuContent(this._disconnectButton(peerId));
+      this.connection.init(
+        trackHandler, candidateHandler, offerHandler, iceHandler
+      );
+      this.connection.addTracks();
+    }
+  }
+
+  _closeConnection(peerId) {
+    logger.info('Closing connection to', peerId);
+    this.view.hidePlayer();
+    this.connection.close();
+    this.connection = null;
+    this.view.setNavMenuContent(this.onlineLabel);
+    this.client.publishPresence(true);
+  }
+
+  // Client connect/login/message handlers.
 
   _setClientHandlers() {
     this.client.setConnectHandlers(
@@ -203,131 +397,16 @@ export default class Peer {
     );
   }
 
-  connect() {
-    this.client.connect();
-  }
-
-  disconnect() {
-    this.view.stopVideo();
-    if (this.connection) {
-      this.connection.close();
-      this.connection = null;
-    }
-    if (this.client.isConnected()) {
-      this.client.disconnect();
-    }
-  }
-
-  // Connection handlers.
-
-  _offerConnection(peerId) {
-    const onSuccess = () => {
-      this.client.publishPresence(false);
-      this.client.sendInfoMsg(this.connection.peerId, 'offer');
-      this.view.setModalContent(...this._offerDialog(peerId));
-      this.view.showModal(true);
-    };
-    const onError = (error) => {
-      logger.info('Failed to offer connection to', peerId, error);
-      this._closeConnection(peerId);
-      this.view.showAlert(error.message);
-    };
-    if (!this.connection) {
-      logger.info('Offering connection to', peerId);
-      this.view.hideModal();
-      this.connection = new Connection(true);
-      this.connection.peerId = peerId;
-      this.connection.initUserMedia(onSuccess, onError, true, true);
-    }
-  }
-
-  _acceptConnection(peerId) {
-    const onSuccess = () => {
-      this.client.publishPresence(false);
-      this.client.sendInfoMsg(this.connection.peerId, 'accept');
-      this._openConnection(peerId);
-    };
-    const onError = (error) => {
-      logger.error('Error accepting offer from', peerId, error);
-      this._closeConnection(peerId, true);
-      this.view.showAlert(error.message);
-    };
-    if (!this.connection) {
-      logger.info('Accepting offer from', peerId);
-      this.view.hideModal();
-      this.peers.removeOffer(peerId);
-      this.connection = new Connection(false);
-      this.connection.peerId = peerId;
-      this.connection.initUserMedia(onSuccess, onError, true, true);
-    }
-  }
-
-  _openConnection(peerId) {
-    const trackHandler = (track) => {
-      this.view.addTrack(track);
-      logger.info('Added remote', track.kind);
-    };
-    const candidateHandler = (jsonCandidate) => {
-      const stringCandidate = JSON.stringify(jsonCandidate);
-      this.client.sendInfoMsg(this.connection.peerId, stringCandidate, false);
-      logger.info('Sent candidate');
-    };
-    const offerHandler = (jsonSdp) => {
-      const stringSdp = JSON.stringify(jsonSdp);
-      this.client.sendInfoMsg(this.connection.peerId, stringSdp, false);
-      logger.info('Sent SDP');
-    };
-    const failureHandler = () => {
-      logger.error('ICE failed connecting to', peerId);
-      this._closeConnection(peerId, true);
-      this.view.showAlert('ICE failed.');
-    };
-    if (this.connection && this.connection.peerId === peerId) {
-      logger.info('Opening connection to', peerId);
-      this.view.hideModal();
-      this.view.setNavMenuContent(this._disconnectButton(peerId));
-      this.view.startVideo();
-      this.connection.init(
-        trackHandler,
-        candidateHandler,
-        offerHandler,
-        failureHandler
-      );
-      this.connection.addTracks();
-    }
-  }
-
-  _closeConnection(peerId, sendFail = false) {
-    logger.info('Closing connection to', peerId);
-    this.view.setModalContent(...this.peers.getContent());
-    this.view.setNavMenuContent(this.peersButton);
-    this.view.stopVideo();
-    if (sendFail) {
-      this.client.sendInfoMsg(peerId, 'fail');
-    } else {
-      this.client.sendInfoMsg(peerId, 'close');
-    }
-    this.client.publishPresence(true);
-    if (this.connection && this.connection.peerId === peerId) {
-      this.connection.close();
-      this.connection = null;
-    }
-  }
-
-  // Client connect/login handlers.
-
   _connectHandler() {
     logger.info('Connected');
-    this.view.setNavMenuContent(this.peersButton);
-    if (!this.connection) {
-      this.view.setModalContent(...this.peers.getContent());
-      this.view.showModal();
-    }
+    this.peersPanel.setOnline();
+    this.view.setNavMenuContent(this.onlineLabel);
   }
 
   _disconnectHandler(pingTimeout) {
     logger.info('Disconnected');
-    this.peers.reset();
+    this.peersPanel.setOffline();
+    this.peersPanel.reset();
     this.view.setNavMenuContent(this.offlineLabel);
     this.view.hideModal();
     if (pingTimeout) {
@@ -352,16 +431,14 @@ export default class Peer {
     this.view.setNavStatus(clientId.substr(0, 5));
   }
 
-  // Client message handlers.
-
   _presenceEventHandler(peerId, isAvailable) {
     if (isAvailable) {
-      this.peers.addPeer(peerId, this._offerConnection.bind(this));
+      this.peersPanel.addPeer(peerId, this._offerConnection.bind(this));
       if (!this.connection) {
         this.client.sendInfoMsg(peerId, 'available');
       }
     } else {
-      this.peers.removePeer(peerId);
+      this.peersPanel.removePeer(peerId);
     }
   }
 
@@ -398,7 +475,6 @@ export default class Peer {
 
   _puntHandler() {
     logger.info('Punted');
-    this.view.hideModal();
     this.view.showAlert(
       'Offline. '
       + 'You\'re logged in from another tab '
@@ -409,58 +485,55 @@ export default class Peer {
   // Specific peer message handlers.
 
   _handleOffer(peerId) {
-    this.peers.addOffer(peerId, this._acceptConnection.bind(this));
-    if (!this.connection && !this.view.isModalVisible()) {
-      this.view.showModal();
+    this.offersDialog.addOffer(peerId, this._acceptConnection.bind(this));
+    if (!this.connection) {
+      this.view.showModal(this.offersDialog);
     }
   }
 
   _handleAccept(peerId) {
+    this.view.hideModal();
+    this.view.showPlayer();
     this._openConnection(peerId);
   }
 
   _handleClose(peerId) {
     if (this.connection && this.connection.peerId === peerId) {
       this._closeConnection(peerId);
-      this.view.showModal();
     } else {
-      this.peers.removeOffer(peerId);
+      this.offersDialog.removeOffer(peerId);
+      if (!this.offersDialog.hasContent()) {
+        this.view.hideModal();
+      }
     }
   }
 
   _handleFail(peerId) {
     if (this.connection && this.connection.peerId === peerId) {
-      this._closeConnection(peerId);
+      logger.error('Received fail from', peerId);
       this.view.showAlert('The other peer failed to connect.');
-    } else {
-      this.peers.removeOffer(peerId);
-    }
-  }
-
-  _handleFailure(peerId) {
-    if (this.connection && this.connection.peerId === peerId) {
       this._closeConnection(peerId);
-      this.view.showAlert('The other peer failed to connect.');
     }
   }
 
   _handlePresenceInfo(peerId, isAvailable) {
     if (isAvailable) {
-      this.peers.addPeer(peerId, this._offerConnection.bind(this));
+      this.peersPanel.addPeer(peerId, this._offerConnection.bind(this));
     } else {
-      this.peers.removePeer(peerId);
+      this.peersPanel.removePeer(peerId);
     }
   }
 
   _handleCandidate(peerId, jsonCandidate) {
     if (this.connection && this.connection.peerId === peerId) {
       logger.info('Received candidate');
-      const failureHandler = () => {
+      const iceHandler = () => {
         logger.error('ICE failed connecting to', peerId);
-        this._closeConnection(peerId, true);
         this.view.showAlert('ICE failed.');
+        this.client.sendInfoMsg(peerId, 'fail');
+        this._closeConnection(peerId, true);
       };
-      this.connection.addCandidate(jsonCandidate, failureHandler).then(() => {
+      this.connection.addCandidate(jsonCandidate, iceHandler).then(() => {
       }).catch(error => {
         logger.error(error);
       });
