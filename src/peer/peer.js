@@ -106,22 +106,8 @@ class OffersDialog {
   constructor(view) {
     this.header = view.getModalHeader('Offers');
     this.panel = document.createElement('section');
-    this.footer = this._footer(view);
+    this.footer = document.createElement('footer');
     this.offers = {};
-  }
-
-  _footer(view) {
-    const ignoreButton = document.createElement('button');
-    ignoreButton.textContent = 'Ignore';
-    ignoreButton.setAttribute('title', 'Ignore all current offers');
-    ignoreButton.style.float = 'right';
-    ignoreButton.addEventListener('click', () => {
-      view.hideModal();
-      this.reset();
-    });
-    const footer = document.createElement('footer');
-    footer.append(ignoreButton);
-    return footer;
   }
 
   getContent() {
@@ -132,7 +118,7 @@ class OffersDialog {
     return Object.keys(this.offers).length > 0;
   }
 
-  addOffer(peerId, acceptHandler) {
+  addOffer(peerId, ignoreHandler, acceptHandler) {
     if (this.offers[peerId]) {
       return;
     }
@@ -146,6 +132,15 @@ class OffersDialog {
     label.textContent = peerName;
     label.classList.add('pseudo', 'button');
     section.append(label);
+    const ignoreButton = document.createElement('button');
+    ignoreButton.textContent = 'Ignore';
+    ignoreButton.setAttribute('title', 'Ignore all current offers');
+    ignoreButton.style.float = 'right';
+    ignoreButton.style.marginLeft = '0.2em';
+    ignoreButton.addEventListener('click', () => {
+      ignoreHandler(peerId);
+    });
+    section.append(ignoreButton);
     const acceptButton = document.createElement('button')
     acceptButton.textContent = 'Answer';
     acceptButton.setAttribute('title', `Answer ${peerName}`);
@@ -305,6 +300,14 @@ export default class Peer {
     this.connection.close();
     this.client.sendInfoMsg(peerId, 'close');
     this.client.publishPresence(true);
+  }
+
+  _ignoreConnection(peerId) {
+    logger.info('Ignoring offer from', peerId);
+    this.offersDialog.removeOffer(peerId);
+    if (!this.offersDialog.hasContent()) {
+      this.view.hideModal();
+    }
   }
 
   _acceptConnection(peerId) {
@@ -477,7 +480,11 @@ export default class Peer {
   // Specific peer message handlers.
 
   _handleOffer(peerId) {
-    this.offersDialog.addOffer(peerId, this._acceptConnection.bind(this));
+    this.offersDialog.addOffer(
+      peerId,
+      this._ignoreConnection.bind(this),
+      this._acceptConnection.bind(this)
+    );
     if (!this.hasConnectedPeer()) {
       this.view.showModal(this.offersDialog);
     }
