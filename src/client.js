@@ -35,6 +35,7 @@ export default class Client {
     this.ws = new MyWebSocket();
     this.keepaliveTimer = null;
     this.lastPingDate = null;
+    this._addPingOnFocusListener();
     this.currentRequestId = 0;
     this.authing = false;
     this.responseCallbacks = {};
@@ -150,10 +151,10 @@ export default class Client {
 
   _wsConnectHandler() {
     this.connectHandler();
-    clearInterval(this.keepaliveTimer);
+    clearTimeout(this.keepaliveTimer);
     this.lastPingDate = new Date();
     this._cleanResponseCallbacks();
-    this.keepaliveTimer = setInterval(() => {
+    this.keepaliveTimer = setTimeout(() => {
       this._ping();
     }, CONST.keepaliveInterval * 1000);
     this.authing = false;
@@ -161,7 +162,7 @@ export default class Client {
   }
 
   _wsDisconnectHandler() {
-    clearInterval(this.keepaliveTimer);
+    clearTimeout(this.keepaliveTimer);
     let pingTimeout = false;
     if (this.lastPingDate) {
       const diff = new Date() - this.lastPingDate;
@@ -215,10 +216,22 @@ export default class Client {
     }
     const onSuccess = () => {
       this.lastPingDate = new Date();
+      this.keepaliveTimer = setTimeout(() => {
+        this._ping();
+      }, CONST.keepaliveInterval * 1000);
     }
     if (this.isConnected()) {
       this._sendRequest('echo', {}, onSuccess, onError);
     }
+  }
+
+  _addPingOnFocusListener() {
+    window.addEventListener('focus', () => {
+      if (this.lastPingDate) {
+        clearTimeout(this.keepaliveTimer);
+        this._ping();
+      }
+    });
   }
 
   // Request/response/event handlers.
