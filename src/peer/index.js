@@ -14,7 +14,7 @@ if (adapter.browserDetails.browser.startsWith("Not")) {
   });
   window.addEventListener('beforeunload', function (event) {
     if (window.peer) {
-      if (window.peer.connection) {
+      if (window.peer.hasConnectedPeer()) {
         event.preventDefault();
         event.returnValue = '';
       } else {

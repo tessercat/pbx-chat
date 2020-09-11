@@ -6,21 +6,44 @@ import logger from './logger.js';
 
 export default class Connection {
 
-  constructor(isPolite) {
-    this.isPolite = isPolite;
+  constructor() {
+    this.clientId = null;
+    this.isPolite = null;
     this.userMedia = null;
     this.pc = null;
     this.statsInterval = 10000;
-    this.statsIntervalId = null;
     this.makingOffer = false;
     this.ignoreOffer = false;
   }
 
-  init(trackHandler, candidateHandler, sdpHandler, failureHandler) {
+  init(clientId, isPolite, stunServer) {
+    if (this.clientId || this.pc || this.userMedia) {
+      throw new Error('Connection in use');
+    }
+    this.clientId = clientId;
+    this.isPolite = isPolite;
     const configuration = {
-      iceServers: [{urls: `stun:${location.hostname}`}],
+      iceServers: [{urls: `stun:${stunServer}`}],
     }
     this.pc = new RTCPeerConnection(configuration);
+  }
+
+  open(trackHandler, candidateHandler, sdpHandler, iceHandler) {
+    if (!this.pc) {
+      throw new Error('No connection found.');
+    }
+    if (!this.userMedia || this.userMedia.getTracks().length === 0) {
+      throw new Error('No user media found.');
+    }
+    this._setHandlers(
+      trackHandler, candidateHandler, sdpHandler, iceHandler
+    );
+    for (const track of this.userMedia.getTracks()) {
+      this.pc.addTrack(track, this.userMedia);
+    }
+  }
+
+  _setHandlers(trackHandler, candidateHandler, sdpHandler, iceHandler) {
     this.pc.ontrack = (event) => {
       if (event.track) {
         trackHandler(event.track);
@@ -31,7 +54,7 @@ export default class Connection {
         candidateHandler(event.candidate.toJSON());
       } else {
         if (this.pc.connectionState === 'failed') {
-          failureHandler();
+          iceHandler();
         }
       }
     };
@@ -56,8 +79,8 @@ export default class Connection {
   }
 
   close() {
+    this.clientId = null;
     if (this.pc) {
-      clearInterval(this.statsIntervalId);
       this.pc.close();
       this.pc = null;
     }
@@ -100,8 +123,37 @@ export default class Connection {
 
   initUserMedia(successHandler, errorHandler, audio, video) {
     const onSuccess = (stream) => {
-      this.userMedia = stream;
-      successHandler(stream);
+      if (this.clientId) {
+        this.userMedia = stream;
+        successHandler();
+      } else {
+
+        /*
+         * This runs when the connection closes while getUserMedia is
+         * generating a local media stream.
+         *
+         * In September of 2020, there must be some kind of race condition
+         * in Android Chromium (Android 10 Chrome, Android 6 Vivaldi)
+         * when media stream tracks are stopped too soon after starting.
+         *
+         * Tracks are live before they're stopped, and ended after,
+         * but stopping them so soon after starting must leave a reference
+         * behind somewhere, because the browser shows media devices
+         * as active, even after stream tracks close.
+         *
+         * A slight pause before stopping tracks seems to take care
+         * of the problem.
+         *
+         * I haven't seen this in Firefox, Chromium or Vivaldi on Linux,
+         * so I assume it's Android only.
+         */
+        const sleep = () => new Promise((resolve) => setTimeout(resolve, 500));
+        sleep().then(() => {
+          for (const track of stream.getTracks()) {
+            track.stop();
+          }
+        });
+      }
     }
     const onError = (error) => {
       errorHandler(error);
@@ -109,20 +161,11 @@ export default class Connection {
     this._getUserMedia(onSuccess, onError, audio, video);
   }
 
-  addTracks() {
-    if (!this.userMedia || this.userMedia.getTracks().length === 0) {
-      throw new Error('No user media found.');
-    }
-    for (const track of this.userMedia.getTracks()) {
-      this.pc.addTrack(track, this.userMedia);
-    }
-  }
+  // Inbound signal handlers.
 
-  // Incoming signal handler methods.
-
-  async addCandidate(jsonCandidate, failureHandler) {
+  async addCandidate(jsonCandidate, iceHandler) {
     if (this.pc.connectionState === 'failed') {
-      failureHandler();
+      iceHandler();
     } else {
       try {
         await this.pc.addIceCandidate(jsonCandidate);

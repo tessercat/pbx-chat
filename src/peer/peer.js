@@ -198,12 +198,12 @@ class OfferingDialog {
     return footer;
   }
 
-  setInitializing() {
+  setInitializing(peerId) {
+    this.peerId = peerId;
     this.section.textContent = 'Starting local media.';
   }
 
-  setOffering(peerId) {
-    this.peerId = peerId;
+  setOffering() {
     this.section.textContent = 'Offer sent. Waiting for an answer.';
   }
 
@@ -219,7 +219,7 @@ export default class Peer {
     this.channelId = location.pathname.split('/').pop();
     this.client = new Client(this.channelId);
     this._setClientHandlers();
-    this.connection = null;
+    this.connection = new Connection();
     this.peersPanel = new PeersPanel();
     this.view.setChannelInfoContent(...this.peersPanel.getContent());
     this.offersDialog = new OffersDialog(this.view);
@@ -236,13 +236,8 @@ export default class Peer {
   disconnect() {
     this.view.hideModal();
     this.view.hidePlayer();
-    if (this.connection) {
-      this.connection.close();
-      this.connection = null;
-    }
-    if (this.client.isConnected()) {
-      this.client.disconnect();
-    }
+    this.connection.close();
+    this.client.disconnect();
   }
 
   // Element builders.
@@ -267,87 +262,88 @@ export default class Peer {
     button.classList.add('pseudo', 'button');
     button.setAttribute('title', 'Close the connection');
     button.addEventListener('click', () => {
-      this.client.sendInfoMsg(peerId, 'close');
       this._closeConnection(peerId);
+      this.client.sendInfoMsg(peerId, 'close');
+      this.client.publishPresence(true);
     });
     return button;
   }
 
   // Peer-to-peer connection handlers.
 
+  hasConnectedPeer(peerId = null) {
+    if (peerId) {
+      return this.connection.clientId && this.connection.clientId === peerId;
+    }
+    return this.connection.clientId;
+  }
+
   _offerConnection(peerId) {
     const onSuccess = () => {
-      this.client.sendInfoMsg(this.connection.peerId, 'offer');
+      this.client.sendInfoMsg(peerId, 'offer');
       this.client.publishPresence(false);
-      this.offeringDialog.setOffering(peerId);
+      this.offeringDialog.setOffering();
     };
     const onError = (error) => {
       logger.info('Failed to offer connection to', peerId, error);
       this.view.showAlert(error.message);
       this.connection.close();
-      this.connection = null;
       this.client.publishPresence(true);
     };
-    if (!this.connection) {
+    if (!this.hasConnectedPeer()) {
       logger.info('Offering connection to', peerId);
-      this.offeringDialog.setInitializing();
+      this.connection.init(peerId, true, location.hostname);
+      this.offeringDialog.setInitializing(peerId);
       this.view.showModal(this.offeringDialog);
-      this.connection = new Connection(true);
-      this.connection.peerId = peerId;
       this.connection.initUserMedia(onSuccess, onError, true, true);
     }
   }
 
   _cancelOffer(peerId) {
     logger.info('Canceling offer to', peerId);
-    this.client.sendInfoMsg(peerId, 'close');
     this.view.hideModal();
     this.connection.close();
-    this.connection = null;
+    this.client.sendInfoMsg(peerId, 'close');
     this.client.publishPresence(true);
   }
 
   _acceptConnection(peerId) {
     const onSuccess = () => {
-      this.client.sendInfoMsg(this.connection.peerId, 'accept');
+      this.client.sendInfoMsg(peerId, 'accept');
       this.client.publishPresence(false);
       this._openConnection(peerId);
     };
     const onError = (error) => {
       logger.error('Error accepting offer from', peerId, error);
-      this.client.sendInfoMsg(this.connection.peerId, 'fail');
+      this.client.sendInfoMsg(peerId, 'fail');
       this.view.showAlert(error.message);
       this.view.hidePlayer();
       this.connection.close();
-      this.connection = null;
     };
-    if (!this.connection) {
+    if (!this.hasConnectedPeer()) {
       logger.info('Accepting offer from', peerId);
       this.view.showPlayer();
       this.view.hideModal();
       this.offersDialog.removeOffer(peerId);
-      this.connection = new Connection(false);
-      this.connection.peerId = peerId;
+      this.connection.init(peerId, false, location.hostname);
       this.connection.initUserMedia(onSuccess, onError, true, true);
     }
   }
 
   _openConnection(peerId) {
-    if (this.connection && this.connection.peerId === peerId) {
+    if (this.hasConnectedPeer(peerId)) {
       const trackHandler = (track) => {
         this.view.addTrack(track);
         logger.info('Added remote', track.kind);
       };
       const candidateHandler = (jsonCandidate) => {
         const stringCandidate = JSON.stringify(jsonCandidate);
-        this.client.sendInfoMsg(
-          this.connection.peerId, stringCandidate, false
-        );
+        this.client.sendInfoMsg(peerId, stringCandidate, false);
         logger.info('Sent candidate');
       };
       const offerHandler = (jsonSdp) => {
         const stringSdp = JSON.stringify(jsonSdp);
-        this.client.sendInfoMsg(this.connection.peerId, stringSdp, false);
+        this.client.sendInfoMsg(peerId, stringSdp, false);
         logger.info('Sent SDP');
       };
       const iceHandler = () => {
@@ -355,17 +351,15 @@ export default class Peer {
         this.client.sendInfoMsg(peerId, 'fail');
         this.view.hidePlayer();
         this.connection.close();
-        this.connection = null;
         this.view.showAlert('ICE failed.');
         this.view.setNavMenuContent(this.onlineLabel);
         this.client.publishPresence(true);
       };
       logger.info('Opening connection to', peerId);
       this.view.setNavMenuContent(this._disconnectButton(peerId));
-      this.connection.init(
+      this.connection.open(
         trackHandler, candidateHandler, offerHandler, iceHandler
       );
-      this.connection.addTracks();
     }
   }
 
@@ -373,9 +367,7 @@ export default class Peer {
     logger.info('Closing connection to', peerId);
     this.view.hidePlayer();
     this.connection.close();
-    this.connection = null;
     this.view.setNavMenuContent(this.onlineLabel);
-    this.client.publishPresence(true);
   }
 
   // Client connect/login/message handlers.
@@ -434,7 +426,7 @@ export default class Peer {
   _presenceEventHandler(peerId, isAvailable) {
     if (isAvailable) {
       this.peersPanel.addPeer(peerId, this._offerConnection.bind(this));
-      if (!this.connection) {
+      if (!this.hasConnectedPeer()) {
         this.client.sendInfoMsg(peerId, 'available');
       }
     } else {
@@ -486,7 +478,7 @@ export default class Peer {
 
   _handleOffer(peerId) {
     this.offersDialog.addOffer(peerId, this._acceptConnection.bind(this));
-    if (!this.connection) {
+    if (!this.hasConnectedPeer()) {
       this.view.showModal(this.offersDialog);
     }
   }
@@ -498,8 +490,9 @@ export default class Peer {
   }
 
   _handleClose(peerId) {
-    if (this.connection && this.connection.peerId === peerId) {
+    if (this.hasConnectedPeer(peerId)) {
       this._closeConnection(peerId);
+      this.client.publishPresence(true);
     } else {
       this.offersDialog.removeOffer(peerId);
       if (!this.offersDialog.hasContent()) {
@@ -509,10 +502,11 @@ export default class Peer {
   }
 
   _handleFail(peerId) {
-    if (this.connection && this.connection.peerId === peerId) {
+    if (this.hasConnectedPeer(peerId)) {
       logger.error('Received fail from', peerId);
       this.view.showAlert('The other peer failed to connect.');
       this._closeConnection(peerId);
+      this.client.publishPresence(true);
     }
   }
 
@@ -525,13 +519,14 @@ export default class Peer {
   }
 
   _handleCandidate(peerId, jsonCandidate) {
-    if (this.connection && this.connection.peerId === peerId) {
+    if (this.hasConnectedPeer(peerId)) {
       logger.info('Received candidate');
       const iceHandler = () => {
         logger.error('ICE failed connecting to', peerId);
         this.view.showAlert('ICE failed.');
-        this.client.sendInfoMsg(peerId, 'fail');
         this._closeConnection(peerId, true);
+        this.client.sendInfoMsg(peerId, 'fail');
+        this.client.publishPresence(true);
       };
       this.connection.addCandidate(jsonCandidate, iceHandler).then(() => {
       }).catch(error => {
@@ -541,7 +536,7 @@ export default class Peer {
   }
 
   _handleSdp(peerId, jsonSdp) {
-    if (this.connection && this.connection.peerId === peerId) {
+    if (this.hasConnectedPeer(peerId)) {
       logger.debug('Received SDP');
       const sdpHandler = (newJsonSdp) => {
         const stringSdp = JSON.stringify(newJsonSdp);
