@@ -132,24 +132,24 @@ class OffersDialog {
     label.textContent = peerName;
     label.classList.add('pseudo', 'button');
     section.append(label);
-    const ignoreButton = document.createElement('button');
-    ignoreButton.textContent = 'Ignore';
-    ignoreButton.setAttribute('title', 'Ignore all current offers');
-    ignoreButton.style.float = 'right';
-    ignoreButton.style.marginLeft = '0.2em';
-    ignoreButton.addEventListener('click', () => {
-      ignoreHandler(peerId);
-    });
-    section.append(ignoreButton);
     const acceptButton = document.createElement('button')
     acceptButton.textContent = 'Answer';
     acceptButton.setAttribute('title', `Answer ${peerName}`);
     acceptButton.style.float = 'right';
+    acceptButton.style.marginLeft = '0.2em';
     acceptButton.classList.add('success');
     acceptButton.addEventListener('click', () => {
       acceptHandler(peerId);
     });
     section.append(acceptButton);
+    const ignoreButton = document.createElement('button');
+    ignoreButton.textContent = 'Ignore';
+    ignoreButton.setAttribute('title', 'Ignore all current offers');
+    ignoreButton.style.float = 'right';
+    ignoreButton.addEventListener('click', () => {
+      ignoreHandler(peerId);
+    });
+    section.append(ignoreButton);
     logger.info('Adding offer from', peerId);
     this.offers[peerId] = article;
     this.panel.append(article);
