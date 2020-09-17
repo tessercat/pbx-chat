@@ -9,17 +9,18 @@ if (adapter.browserDetails.browser.startsWith("Not")) {
   alert("Your browser is not supported.");
 } else {
   window.addEventListener('load', function () {
-    window.peer = new Peer();
-    window.peer.connect();
+    document.peer = new Peer();
+    document.peer.connect();
   });
   window.addEventListener('beforeunload', function (event) {
-    if (window.peer) {
-      if (window.peer.hasConnectedPeer()) {
-        event.preventDefault();
-        event.returnValue = '';
-      } else {
-        window.peer.disconnect();
-      }
+    if (!document.peer.connection.isIdle()) {
+      event.preventDefault();
+      event.returnValue = '';
+    } else {
+      document.peer.disconnect();
     }
+  });
+  window.addEventListener('unload', function () {
+    document.peer.disconnect();
   });
 }

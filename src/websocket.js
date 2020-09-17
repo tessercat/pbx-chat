@@ -27,7 +27,13 @@ export default class MyWebSocket {
     const baseDelay = this.retryCount * this.retryBackoff > this.retryMaxWait
       ? this.retryMaxWait
       : this.retryCount * this.retryBackoff;
-    const delay = baseDelay + (Math.floor(Math.random() * Math.floor(5)) - 2);
+    let delay = 0;
+    if (baseDelay !== 0) {
+      const randomDelay = Math.floor(
+        Math.random() * (this.retryBackoff * 2 + 1)
+      ) - this.retryBackoff;
+      delay = baseDelay + randomDelay;
+    }
     logger.info(`Waiting ${delay}s after ${this.retryCount} tries`);
     this.retryTimer = setTimeout((...handlers) => {
       this.retryCount += 1;
@@ -54,8 +60,8 @@ export default class MyWebSocket {
       socket.onclose = (event) => {
         disconnectHandler(event);
         clearTimeout(this.retryTimer);
-        if (this.isConnecting || (this.socket && !this.isHalted)) {
-          this.isConnecting = false;
+        this.isConnecting = false;
+        if (!this.isHalted) {
           this._setRetryTimer(...arguments);
         }
       }
@@ -65,26 +71,13 @@ export default class MyWebSocket {
     }
   }
 
-  halt() {
-    clearTimeout(this.retryTimer);
+  disconnect() {
     this.isHalted = true;
-  }
-
-  disconnect(disconnectHandler) {
+    this.isConnecting = false;
     clearTimeout(this.retryTimer);
     this.retryCount = 0;
-    this.isConnecting = false;
-    this.isHalted = true;
-    if (this.socket) {
-      this.socket.onclose = null;
-      this.socket.onmessage = null;
-      this.socket.onopen = null;
-      if (this.isConnected()) {
-        this.socket.onclose = (event) => {
-          disconnectHandler(event);
-        };
-        this.socket.close();
-      }
+    if (this.isConnected()) {
+      this.socket.close();
       this.socket = null;
     }
   }

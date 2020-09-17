@@ -7,11 +7,12 @@ import logger from './logger.js';
 
 const CONST = {
   authRequired: -32000,
-  keepaliveInterval: 45,
+  pingInterval: 45,
+  pingMaxVary: 5,
   requestExpiry: 30,
 }
 
-class Request {
+class VertoRequest {
   constructor(method, params, sessid, requestId) {
     this.jsonrpc = '2.0';
     this.method = method;
@@ -30,34 +31,39 @@ class ResponseCallbacks {
 
 export default class Client {
 
-  constructor(channelId) {
-    this.channelId = channelId;
+  constructor() {
+    this.channelId = location.pathname.split('/').pop();
     this.ws = new MyWebSocket();
-    this.keepaliveTimer = null;
-    this.lastPingDate = null;
-    this._addPingOnFocusListener();
+    this.pingTimer = null;
+    this.lastActive = null;
+    this._addActivityListeners();
     this.currentRequestId = 0;
     this.authing = false;
     this.responseCallbacks = {};
-    this.isSubscribed = false;
   }
 
-  setConnectHandlers(connectHandler, disconnectHandler) {
-    this.connectHandler = connectHandler;
-    this.disconnectHandler = disconnectHandler;
+  setSocketHandlers(connectHandler, disconnectHandler) {
+    this.onConnect = connectHandler ? connectHandler : () => {};
+    this.onDisconnect = disconnectHandler ? disconnectHandler : () => {};
   }
 
-  setLoginHandlers(successHandler, failureHandler, readyHandler) {
-    this.loginSuccessHandler = successHandler;
-    this.loginFailureHandler = failureHandler;
-    this.clientReadyHandler = readyHandler;
+  setSessionHandlers(
+      loginHandler, loginErrorHandler, readyHandler,
+      pingHandler, pingErrorHandler) {
+    this.onLogin = loginHandler ? loginHandler : () => {};
+    this.onLoginError = loginErrorHandler ? loginErrorHandler : () => {};
+    this.onReady = readyHandler ? readyHandler : () => {};
+    this.onPing = pingHandler ? pingHandler : () => {};
+    this.onPingError = pingErrorHandler ? pingErrorHandler : () => {};
   }
 
-  setMessageHandlers(presenceEventHandler, infoMsgHandler, puntHandler) {
-    this.presenceEventHandler = presenceEventHandler;
-    this.infoMsgHandler = infoMsgHandler;
-    this.puntHandler = puntHandler;
+  setMessageHandlers(eventHandler, infoMsgHandler, puntHandler) {
+    this.onEvent = eventHandler ? eventHandler : () => {};
+    this.onInfoMsg = infoMsgHandler ? infoMsgHandler : () => {};
+    this.onPunt = puntHandler ? puntHandler : () => {};
   }
+
+  // Channel client interface.
 
   isConnected() {
     return this.ws.isConnected();
@@ -65,43 +71,138 @@ export default class Client {
 
   connect() {
     if (!this.isConnected()) {
-      const onSuccess = (sessionId, jsonData) => {
+      const onSuccess = (sessionId, loginData) => {
         this.sessionId = sessionId;
-        this.clientId = jsonData.clientId;
-        this.password = jsonData.password;
-        this._wsConnect();
+        this.clientId = loginData.clientId;
+        this.password = loginData.password;
+        this.ws.connect(
+          this._wsConnectHandler.bind(this),
+          this._wsDisconnectHandler.bind(this),
+          this._wsMessageHandler.bind(this),
+        );
       }
       const onError = (error) => {
-        this.loginFailureHandler(error.message);
+        this.onLoginError(error.message);
       }
       this._startSession(onSuccess, onError);
     }
   }
 
   disconnect() {
-    if (this.isConnected()) {
-      if (this.isSubscribed) {
-        this._publishDisconnect();
+    this.onDisconnect();
+    this.ws.disconnect();
+  }
+
+  subscribe(onSuccess, onError) {
+    const onRequestSuccess = () => {
+      logger.info('Subscribed');
+      if (onSuccess) {
+        onSuccess();
       }
-      this.ws.disconnect(
-        this._wsDisconnectHandler.bind(this),
-      );
+    }
+    const onRequestError = (error) => {
+      logger.error('Subscription error', error);
+      if (onError) {
+        onError(error);
+      }
+    }
+    this._sendRequest('verto.subscribe', {
+      eventChannel: this.channelId
+    }, onRequestSuccess, onRequestError);
+  }
+
+  publish(eventData, onSuccess, onError) {
+    logger.debug('Broadcast', eventData); // debug.
+    const onRequestSuccess = (message) => {
+      if ('code' in message.result) {
+        if (onError) {
+          onError(message);
+        }
+      } else {
+        if (onSuccess) {
+          onSuccess(message);
+        }
+      }
+    }
+    const encoded = this._encode(eventData);
+    if (encoded) {
+      this._sendRequest('verto.broadcast', {
+        localBroadcast: true,
+        eventChannel: this.channelId,
+        eventData: encoded,
+      }, onRequestSuccess, onError);
     } else {
-      this.ws.halt();
+      if (onError) {
+        onError(eventData);
+      }
     }
   }
 
-  // Session maintenance methods.
+  sendInfoMsg(clientId, msgData, onSuccess, onError) {
+    logger.debug('Send', clientId, msgData); // debug.
+    const encoded = this._encode(msgData);
+    if (encoded) {
+      this._sendRequest('verto.info', {
+        msg: {
+          to: clientId,
+          body: encoded
+        }
+      }, onSuccess, onError);
+    } else {
+      if (onError) {
+        onError(msgData);
+      }
+    }
+  }
 
-  _getSessionId(replace = false) {
-    const jsonData = JSON.parse(localStorage.getItem(this.channelId)) || {};
-    let sessionId = jsonData.sessionId;
+  // Websocket event handlers.
+
+  _wsConnectHandler() {
+    logger.info('Connected');
+    this.onConnect();
+    this._cleanResponseCallbacks();
+    this.lastActive = new Date();
+    clearTimeout(this.pingTimer);
+    this.pingTimer = setTimeout(() => {
+      this._ping();
+    }, this._pingInterval());
+    this.authing = false;
+    this._sendRequest('login');
+  }
+
+  _wsDisconnectHandler() {
+    clearTimeout(this.pingTimer);
+    const isTimeout = this._isTimeout();
+    this.lastActive = null;
+    this.onDisconnect(isTimeout);
+    if (isTimeout) {
+      this.disconnect();
+    }
+    logger.info('Disconnected');
+  }
+
+  _wsMessageHandler(event) {
+    const message = this._parse(event.data);
+    if (this.responseCallbacks[message.id]) {
+      logger.debug('Raw response', message); // debug.
+      this._responseHandler(message);
+    } else {
+      logger.debug('Raw event', message); // debug.
+      this._eventHandler(message);
+    }
+  }
+
+  // Connection and verto session maintenance methods.
+
+  _getSessionId(replace) {
+    const sessionData = JSON.parse(localStorage.getItem(this.channelId)) || {};
+    let sessionId = sessionData.sessionId;
     if (replace || !sessionId) {
       const url = URL.createObjectURL(new Blob());
       URL.revokeObjectURL(url);
       sessionId = url.split('/').pop();
-      jsonData.sessionId = sessionId;
-      localStorage.setItem(this.channelId, JSON.stringify(jsonData));
+      sessionData.sessionId = sessionId;
+      localStorage.setItem(this.channelId, JSON.stringify(sessionData));
       logger.info('New session', sessionId);
     }
     return sessionId;
@@ -116,8 +217,8 @@ export default class Client {
       } else {
         throw new Error(response.status);
       }
-    }).then(jsonData => {
-      onSuccess(sessionId, jsonData);
+    }).then(loginData => {
+      onSuccess(sessionId, loginData);
     }).catch(error => {
       if (error.message === '404') {
         let sessionId = this._getSessionId(true);
@@ -128,8 +229,8 @@ export default class Client {
           } else {
             throw new Error(response.status);
           }
-        }).then(jsonData => {
-          onSuccess(sessionId, jsonData);
+        }).then(loginData => {
+          onSuccess(sessionId, loginData);
         }).catch(error => {
           onError(error);
         });
@@ -139,122 +240,10 @@ export default class Client {
     });
   }
 
-  // Websocket maintenance methods.
-
-  _wsConnect() {
-    this.ws.connect(
-      this._wsConnectHandler.bind(this),
-      this._wsDisconnectHandler.bind(this),
-      this._wsMessageHandler.bind(this),
-    );
-  }
-
-  _wsConnectHandler() {
-    this.connectHandler();
-    clearTimeout(this.keepaliveTimer);
-    this.lastPingDate = new Date();
-    this._cleanResponseCallbacks();
-    this.keepaliveTimer = setTimeout(() => {
-      this._ping();
-    }, CONST.keepaliveInterval * 1000);
-    this.authing = false;
-    this._sendRequest('login');
-  }
-
-  _wsDisconnectHandler() {
-    clearTimeout(this.keepaliveTimer);
-    let pingTimeout = false;
-    if (this.lastPingDate) {
-      const diff = new Date() - this.lastPingDate;
-      if (diff > (CONST.keepaliveInterval * 1000) + 10000) {
-        this.ws.halt();
-        pingTimeout = true;
-      }
-    }
-    this.lastPingDate = null;
-    this._cleanResponseCallbacks();
-    this.disconnectHandler(pingTimeout);
-  }
-
-  _wsMessageHandler(event) {
-    try {
-      let message = JSON.parse(event.data);
-      logger.debug('Received', message);
-      if (this.responseCallbacks[message.id]) {
-        this._responseHandler(message);
-      } else {
-        this._eventHandler(message);
-      }
-    } catch (error) {
-      logger.error('Error handling message', error);
-      alert(error.message);
-    }
-  }
-
-  // Client maintenance methods.
-
-  _login() {
-    this.authing = true;
-    const onSuccess = () => {
-      this.authing = false;
-      this.loginSuccessHandler();
-    };
-    const onError = (event) => {
-      this.disconnect();
-      this.loginFailureHandler(event.error.message);
-    };
-    this._sendRequest('login', {
-      login: this.clientId,
-      passwd: this.password
-    }, onSuccess, onError);
-  }
-
-  _ping() {
-    this._cleanResponseCallbacks();
-    const onError = (message) => {
-      logger.error('Bad ping response', message);
-    }
-    const onSuccess = () => {
-      this.lastPingDate = new Date();
-      this.keepaliveTimer = setTimeout(() => {
-        this._ping();
-      }, CONST.keepaliveInterval * 1000);
-    }
-    if (this.isConnected()) {
-      this._sendRequest('echo', {}, onSuccess, onError);
-    }
-  }
-
-  _addPingOnFocusListener() {
-    window.addEventListener('focus', () => {
-      if (this.lastPingDate) {
-        clearTimeout(this.keepaliveTimer);
-        this._ping();
-      }
-    });
-  }
-
-  // Request/response/event handlers.
-
-  _sendRequest(method, params, onSuccess, onError) {
-    this.currentRequestId += 1;
-    const request = new Request(
-      method,
-      params,
-      this.sessionId,
-      this.currentRequestId
-    );
-    this.responseCallbacks[request.id] = new ResponseCallbacks(
-      onSuccess, onError
-    );
-    logger.debug('Sending', request);
-    this.ws.send(request);
-  }
-
   _cleanResponseCallbacks() {
     const expired = [];
     const now = new Date();
-    logger.debug('Cleaning expired response callbacks');
+    logger.debug('Cleaning callbacks');
     for (const requestId in this.responseCallbacks) {
       const diff = now - this.responseCallbacks[requestId].sent;
       if (diff > CONST.requestExpiry * 1000) {
@@ -263,9 +252,92 @@ export default class Client {
     }
     for (const requestId of expired) {
       delete this.responseCallbacks[requestId];
-      logger.error('Deleted expired callbacks for request', requestId);
+      logger.error('Deleted callback', requestId);
     }
   }
+
+  _sendRequest(method, params, onSuccess, onError) {
+    this.currentRequestId += 1;
+    const request = new VertoRequest(
+      method,
+      params,
+      this.sessionId,
+      this.currentRequestId
+    );
+    this.responseCallbacks[request.id] = new ResponseCallbacks(
+      onSuccess, onError
+    );
+    logger.debug('Request', method, params);
+    this.ws.send(request);
+  }
+
+  _login() {
+    this.authing = true;
+    const onSuccess = () => {
+      logger.info('Logged in');
+      this.authing = false;
+      this.onLogin();
+    };
+    const onError = (event) => {
+      logger.error('Login failed', event);
+      this.disconnect();
+      this.onLoginError(event.error.message);
+    };
+    this._sendRequest('login', {
+      login: this.clientId,
+      passwd: this.password
+    }, onSuccess, onError);
+  }
+
+  _isTimeout() {
+    if (this.lastActive) {
+      const timeout = new Date(this.lastActive.getTime() + 60000);
+      if (new Date() > timeout) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _pingInterval() {
+    const pingVary = Math.floor(
+      Math.random() * (CONST.pingMaxVary * 2 + 1)
+    ) - CONST.pingMaxVary;
+    return (CONST.pingInterval + pingVary) * 1000;
+  }
+
+  _ping() {
+    this._cleanResponseCallbacks();
+    if (this.isConnected()) {
+      if (this._isTimeout()) {
+        this.disconnect();
+      } else {
+        const onError = (message) => {
+          logger.error('Ping failed', message);
+          this.onPingError(message);
+        }
+        const onSuccess = () => {
+          clearTimeout(this.pingTimer);
+          this.pingTimer = setTimeout(() => {
+            this._ping();
+          }, this._pingInterval());
+          this.lastActive = new Date();
+          this.onPing();
+        }
+        this._sendRequest('echo', {}, onSuccess, onError);
+      }
+    }
+  }
+
+  _addActivityListeners() {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && this.isConnected()) {
+        this._ping();
+      }
+    });
+  }
+
+  // Verto JSON-RPC response and event handlers.
 
   _responseHandler(message) {
     if (message.result) {
@@ -292,111 +364,84 @@ export default class Client {
   }
 
   _eventHandler(event) {
-    const method = event.method;
-    if (method === 'verto.clientReady') {
-      this.clientReadyHandler(this.clientId);
-      this._subscribe();
-    } else if (method === 'verto.info') {
+    if (event.method === 'verto.clientReady') {
+      logger.info('Ready');
+      this.onReady();
+    } else if (event.method === 'verto.info') {
       const msg = event.params.msg;
       if (msg) {
-        this.infoMsgHandler(msg.from, this._decodeMessage(msg.body));
+        const decoded = this._decode(msg.body);
+        logger.debug('Info', msg.from, decoded); // debug.
+        this.onInfoMsg(msg.from, decoded);
       } else {
-        logger.error('Unhandled verto.info', event);
+        logger.error('Bad info', event);
       }
-    } else if (method === 'verto.event') {
+    } else if (event.method === 'verto.event') {
       if (event.params.sessid === this.sessionId) {
         return;
       }
-      if ('isAvailable' in event.params) {
-        this.presenceEventHandler(
-          event.params.userid.split('@').shift(),
-          event.params.isAvailable
-        );
-      } else if ('isDisconnected' in event.params) {
-        this.presenceEventHandler(
-          event.params.userid.split('@').shift(),
-          null
-        );
-      } else {
-        logger.error('Unhandled verto.event', event);
-      }
-    } else if (method === 'verto.punt') {
-      this.ws.halt();
-      this.puntHandler(event);
+      const clientId = event.params.userid.split('@').shift();
+      const decoded = this._decode(event.params.eventData);
+      logger.debug('Event', clientId, decoded); // debug.
+      this.onEvent(clientId, decoded);
+    } else if (event.method === 'verto.punt') {
+      logger.info('Punt');
+      this.disconnect();
+      this.onPunt(event);
     } else {
-      logger.error('Unhandled event', event);
+      logger.error('Bad event', event);
     }
   }
 
-  // Client to client info messages.
+  // Event and message data processing helpers.
 
-  sendInfoMsg(clientId, body, log = true) {
-    const onError = (message) => {
-      logger.error('Error sending message', message);
+  /*
+   * These methods eat exceptions.
+   *
+   * Parsing takes a stringified object as input and returns the object,
+   * or null on error.
+   *
+   * Encoding takes an object as input and returns a Base64-encoded JSON
+   * string, or an empty string on error.
+   *
+   * Decoding takes a Base64-encoded stringified object as input, decodes
+   * it and returns the object, or null on error.
+   */
+
+  _parse(string) {
+    try {
+      return JSON.parse(string);
+    } catch (error) {
+      logger.error('Error parsing', string, error);
+      return null;
     }
-    const onSuccess = () => {
-      if (log) {
-        logger.info('Sent', body, 'to', clientId);
-      }
-    }
-    const encoded = this._encodeMessage(body);
-    this._sendRequest('verto.info', {
-      msg: {to: clientId, body: encoded}
-    }, onSuccess, onError);
   }
 
-  _encodeMessage(str) {
-    return btoa(encodeURIComponent(str).replace(
-      /%([0-9A-F]{2})/g,
-      (match, p1) => {
-        return String.fromCharCode('0x' + p1);
-      }
-    ));
+  _encode(object) {
+    try {
+      const string = JSON.stringify(object);
+      return btoa(encodeURIComponent(string).replace(
+        /%([0-9A-F]{2})/g, (match, p1) => {
+          return String.fromCharCode('0x' + p1);
+        }
+      ));
+    } catch (error) {
+      logger.error('Error encoding', object, error);
+      return '';
+    }
   }
 
-  _decodeMessage(str) {
-    return decodeURIComponent(atob(str).split('').map((c) => {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-  }
-
-  // Channel presence maintenance methods.
-
-  publishPresence(isAvailable) {
-    const onSuccess = (message) => {
-      if ('code' in message.result) {
-        logger.error('Bad pub response', message);
-      }
+  _decode(encoded) {
+    try {
+      const string = decodeURIComponent(
+        atob(encoded).split('').map((c) => {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join('')
+      );
+      return JSON.parse(string);
+    } catch (error) {
+      logger.error('Error decoding', encoded, error);
+      return null;
     }
-    const onError = (message) => {
-      logger.error('Bad pub response', message);
-    }
-    this._sendRequest('verto.broadcast', {
-      localBroadcast: true,
-      eventChannel: this.channelId,
-      isAvailable: isAvailable,
-    }, onSuccess, onError);
-  }
-
-  _subscribe() {
-    const onSuccess = () => {
-      logger.info('Subscribed');
-      this.isSubscribed = true;
-      this.publishPresence(true);
-    }
-    const onError = (message) => {
-      logger.error('Bad sub response', message);
-    }
-    this._sendRequest('verto.subscribe', {
-      eventChannel: this.channelId
-    }, onSuccess, onError);
-  }
-
-  _publishDisconnect() {
-    this._sendRequest('verto.broadcast', {
-      localBroadcast: true,
-      eventChannel: this.channelId,
-      isDisconnected: true,
-    }, null, null);
   }
 }

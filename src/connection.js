@@ -16,10 +16,18 @@ export default class Connection {
     this.ignoreOffer = false;
   }
 
-  init(clientId, isPolite, stunServer) {
-    if (this.clientId || this.pc || this.userMedia) {
-      throw new Error('Connection in use');
+  isConnectedTo(clientId) {
+    if (clientId) {
+      return clientId === this.clientId;
     }
+    return this.clientId !== null;
+  }
+
+  isIdle() {
+    return this.clientId === null;
+  }
+
+  init(clientId, isPolite, stunServer) {
     this.clientId = clientId;
     this.isPolite = isPolite;
     const configuration = {
@@ -29,23 +37,9 @@ export default class Connection {
   }
 
   open(trackHandler, candidateHandler, sdpHandler, iceHandler) {
-    if (!this.pc) {
-      throw new Error('No connection found.');
-    }
-    if (!this.userMedia || this.userMedia.getTracks().length === 0) {
-      throw new Error('No user media found.');
-    }
-    this._setHandlers(
-      trackHandler, candidateHandler, sdpHandler, iceHandler
-    );
-    for (const track of this.userMedia.getTracks()) {
-      this.pc.addTrack(track, this.userMedia);
-    }
-  }
-
-  _setHandlers(trackHandler, candidateHandler, sdpHandler, iceHandler) {
     this.pc.ontrack = (event) => {
       if (event.track) {
+        logger.info('Added remote', event.track.kind, 'track');
         trackHandler(event.track);
       }
     };
@@ -54,6 +48,7 @@ export default class Connection {
         candidateHandler(event.candidate.toJSON());
       } else {
         if (this.pc.connectionState === 'failed') {
+          logger.error('ICE failed');
           iceHandler();
         }
       }
@@ -76,6 +71,10 @@ export default class Connection {
         this.makingOffer = false;
       }
     };
+    logger.info('Connecting');
+    for (const track of this.userMedia.getTracks()) {
+      this.pc.addTrack(track, this.userMedia);
+    }
   }
 
   close() {
@@ -83,10 +82,12 @@ export default class Connection {
     if (this.pc) {
       this.pc.close();
       this.pc = null;
+      logger.info('Connection closed');
     }
     if (this.userMedia) {
       for (const track of this.userMedia.getTracks()) {
         track.stop();
+        logger.info('Stopped local', track.kind, 'track');
       }
       this.userMedia = null;
     }
@@ -94,37 +95,10 @@ export default class Connection {
 
   // User media methods.
 
-  _getUserMedia(onSuccess, onError, audio, video) {
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-      let hasAudio = false;
-      let hasVideo = false;
-      for (const device of devices) {
-        if (device.kind.startsWith('audio')) {
-          logger.info('Found audio device');
-          hasAudio = true;
-        } else if (device.kind.startsWith('video')) {
-          logger.info('Found video device');
-          hasVideo = true;
-        }
-      }
-      if (audio && !hasAudio) {
-        throw new Error('No audio devices found.');
-      }
-      if (video && !hasVideo) {
-        throw new Error('No video devices found.');
-      }
-      return navigator.mediaDevices.getUserMedia({audio, video});
-    }).then(stream => {
-      onSuccess(stream);
-    }).catch(error => {
-      onError(error);
-    });
-  }
-
   initUserMedia(successHandler, errorHandler, audio, video) {
     const onSuccess = (stream) => {
+      this.userMedia = stream;
       if (this.clientId) {
-        this.userMedia = stream;
         successHandler();
       } else {
 
@@ -147,11 +121,10 @@ export default class Connection {
          * I haven't seen this in Firefox, Chromium or Vivaldi on Linux,
          * so I assume it's Android only.
          */
+
         const sleep = () => new Promise((resolve) => setTimeout(resolve, 500));
         sleep().then(() => {
-          for (const track of stream.getTracks()) {
-            track.stop();
-          }
+          this.close();
         });
       }
     }
@@ -161,10 +134,38 @@ export default class Connection {
     this._getUserMedia(onSuccess, onError, audio, video);
   }
 
+  _getUserMedia(onSuccess, onError, audio, video) {
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      let hasAudio = false;
+      let hasVideo = false;
+      for (const device of devices) {
+        if (device.kind.startsWith('audio')) {
+          logger.info('Found local audio device');
+          hasAudio = true;
+        } else if (device.kind.startsWith('video')) {
+          logger.info('Found local video device');
+          hasVideo = true;
+        }
+      }
+      if (audio && !hasAudio) {
+        throw new Error('No audio devices found.');
+      }
+      if (video && !hasVideo) {
+        throw new Error('No video devices found.');
+      }
+      return navigator.mediaDevices.getUserMedia({audio, video});
+    }).then(stream => {
+      onSuccess(stream);
+    }).catch(error => {
+      onError(error);
+    });
+  }
+
   // Inbound signal handlers.
 
   async addCandidate(jsonCandidate, iceHandler) {
     if (this.pc.connectionState === 'failed') {
+      logger.error('ICE failed');
       iceHandler();
     } else {
       try {

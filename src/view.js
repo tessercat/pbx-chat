@@ -63,12 +63,12 @@ class ActivityWatcher {
 
 class AlertModal {
 
-  constructor(view) {
-    this.header = view.getModalHeader('Alert');
+  constructor(header, closeHandler) {
+    this.header = header;
     this.body = this._messagePanel();
-    this.footer = this._footer(view);
+    this.footer = this._footer(closeHandler);
     this.messageDiv = this.body.querySelector('#alert-message');
-    this.isActive = false;
+    this.message = null;
   }
 
   _messagePanel() {
@@ -80,21 +80,14 @@ class AlertModal {
     return section;
   }
 
-  _footer(view) {
+  _footer(closeHandler) {
     const button = document.createElement('button');
     button.textContent = 'OK';
     button.setAttribute('title', 'Acknowledge this alert');
     button.style.float = 'right';
     button.addEventListener('click', () => {
-      this.isActive = false;
-      view.modalControl.checked = false;
-      if (
-          this.oldModal
-          && this.oldModal.hasContent
-          && this.oldModal.hasContent()) {
-        view.showModal(this.oldModal);
-        this.oldModal = null;
-      }
+      this.message = null;
+      closeHandler();
     });
     const footer = document.createElement('footer');
     footer.append(button);
@@ -105,7 +98,12 @@ class AlertModal {
     return [this.header, this.body, this.footer];
   }
 
+  isActive() {
+    return this.message !== null;
+  }
+
   setMessage(message) {
+    this.message = message;
     this.messageDiv.textContent = message;
   }
 }
@@ -122,8 +120,11 @@ export default class View {
     this.modalOverlay = document.querySelector('#modal-overlay');
     this.videoElement = document.querySelector('#media-player');
     this.activityWatcher = new ActivityWatcher(this.navBar);
-    this.alertModal = new AlertModal(this);
+    this.alertModal = new AlertModal(
+      this.getModalHeader('Alert'), this._hideAlert.bind(this)
+    );
     this.modal = null;
+    this.oldModal = null;
   }
 
   _setContent(container, ...elements) {
@@ -203,27 +204,77 @@ export default class View {
     return header;
   }
 
+  /*
+   * Showing an alert message hides the existing modal, if any. The hidden
+   * modal is permanently hidden and doesn't re-appear when the alert is
+   * dismissed unless the hidden modal has a hasContent method that returns
+   * something truthy.
+   */
+
   showAlert(message) {
     this.alertModal.setMessage(message);
-    this.alertModal.isActive = true;
-    this.alertModal.oldModal = this.modal;
+    this.oldModal = this.modal;
     this.modal = null;
     this._setModalContent(this.alertModal);
     this.modalControl.checked = true;
   }
 
+  _hideAlert() {
+    if (this.oldModal) {
+      this.modal = this.oldModal;
+      this.oldModal = null;
+      if (this.modal.hasContent && this.modal.hasContent()) {
+        this._setModalContent(this.modal);
+      } else {
+        this.modal = null;
+        this.modalControl.checked = false;
+      }
+    } else {
+      this.modalControl.checked = false;
+    }
+  }
+
+  /*
+   * Showing a modal while the alert is active leaves the alert active and
+   * replaces/sets the hidden modal, if any.
+   */
+
   showModal(modal) {
-    if (!this.alertModal.isActive && modal !== this.modal) {
-      this.modal = modal;
-      this._setModalContent(modal);
+    if (!modal || !modal.getContent) {
+      return
+    }
+    if (this.alertModal.isActive()) {
+      if (modal !== this.oldModal) {
+        this.oldModal = modal;
+      }
+    } else {
+      if (modal !== this.modal) {
+        this.modal = modal;
+        this._setModalContent(modal);
+      }
       this.modalControl.checked = true;
     }
   }
 
-  hideModal() {
-    if (!this.alertModal.isActive) {
-      this.modal = null;
-      this.modalControl.checked = false;
+  /*
+   * Hiding the modal requires a reference to the currently displayed
+   * modal, or, if the alert is active, to the hidden modal. Otherwise the
+   * command is ignored.
+   */
+
+  hideModal(modal) {
+    if (!modal) {
+      return;
+    }
+    if (this.alertModal.isActive()) {
+      if (modal === this.oldModal) {
+        this.oldModal = null;
+      }
+    } else {
+      if (modal === this.modal) {
+        this.modal = null;
+        this.modalControl.checked = false;
+      }
     }
   }
 }
