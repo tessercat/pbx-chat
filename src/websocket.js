@@ -24,15 +24,16 @@ export default class MyWebSocket {
   }
 
   _setRetryTimer(...handlers) {
-    const baseDelay = this.retryCount * this.retryBackoff > this.retryMaxWait
-      ? this.retryMaxWait
-      : this.retryCount * this.retryBackoff;
-    let delay = 0;
-    if (baseDelay !== 0) {
-      const randomDelay = Math.floor(
-        Math.random() * (this.retryBackoff * 2 + 1)
-      ) - this.retryBackoff;
-      delay = baseDelay + randomDelay;
+    let delay = this.retryCount * this.retryBackoff;
+    if (delay > this.retryMaxWait) {
+      delay = this.retryMaxWait;
+    }
+    if (delay) {
+      delay += (
+        // A random number between 0 and N-1.
+        + Math.floor(Math.random() * (this.retryBackoff * 2 + 1))
+        - this.retryBackoff // backoff * retries +/- backoff
+      );
     }
     logger.info(`Waiting ${delay}s after ${this.retryCount} tries`);
     this.retryTimer = setTimeout((...handlers) => {
