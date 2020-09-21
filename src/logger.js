@@ -16,12 +16,19 @@ function logPrefix() {
 
 let logger = {
   debug: (...args) => {
-    if (document.pbxDebugEnabled) {
+    if (document.debugLogEnabled) {
       console.debug(logPrefix(), ...args);
     }
   },
+  client: (...args) => {
+    if (document.clientLogEnabled) {
+      console.log(logPrefix(), ...args);
+    }
+  },
   info: (...args) => {
-    console.log(logPrefix(), ...args);
+    if (document.infoLogEnabled) {
+      console.log(logPrefix(), ...args);
+    }
   },
   error: (...args) => {
     console.error(logPrefix(), ...args);

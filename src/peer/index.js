@@ -9,6 +9,9 @@ if (adapter.browserDetails.browser.startsWith("Not")) {
   alert("Your browser is not supported.");
 } else {
   window.addEventListener('load', function () {
+    document.debugLogEnabled = false;
+    document.clientLogEnabled = true;
+    document.infoLogEnabled = true;
     document.peer = new Peer();
     document.peer.connect();
   });

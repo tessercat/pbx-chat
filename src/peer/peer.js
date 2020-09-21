@@ -90,7 +90,7 @@ export default class Peer {
       this.offerDialog.setOffering(peerId);
     };
     const onError = (error) => {
-      logger.info('Error offering connection.', error.message);
+      logger.info('Error offering connection', error.message);
       this.offerDialog.setClosed();
       this.view.showAlert(error.message);
       this.view.showModal(this.offersDialog);

@@ -112,7 +112,7 @@ export default class Client {
   }
 
   publish(eventData, onSuccess, onError) {
-    logger.debug('Broadcast', eventData); // debug.
+    logger.client('Broadcast', eventData);
     const onRequestSuccess = (message) => {
       if ('code' in message.result) {
         if (onError) {
@@ -139,7 +139,7 @@ export default class Client {
   }
 
   sendInfoMsg(clientId, msgData, onSuccess, onError) {
-    logger.debug('Send', clientId, msgData); // debug.
+    logger.client('Send', clientId, msgData);
     const encoded = this._encode(msgData);
     if (encoded) {
       this._sendRequest('verto.info', {
@@ -184,10 +184,10 @@ export default class Client {
   _wsMessageHandler(event) {
     const message = this._parse(event.data);
     if (this.responseCallbacks[message.id]) {
-      logger.debug('Raw response', message); // debug.
+      logger.debug('Raw response', message);
       this._responseHandler(message);
     } else {
-      logger.debug('Raw event', message); // debug.
+      logger.debug('Raw event', message);
       this._eventHandler(message);
     }
   }
@@ -243,7 +243,7 @@ export default class Client {
   _cleanResponseCallbacks() {
     const expired = [];
     const now = new Date();
-    logger.debug('Cleaning callbacks');
+    logger.client('Cleaning callbacks');
     for (const requestId in this.responseCallbacks) {
       const diff = now - this.responseCallbacks[requestId].sent;
       if (diff > CONST.requestExpiry * 1000) {
@@ -371,7 +371,7 @@ export default class Client {
       const msg = event.params.msg;
       if (msg) {
         const decoded = this._decode(msg.body);
-        logger.debug('Info', msg.from, decoded); // debug.
+        logger.client('Info', msg.from, decoded);
         this.onInfoMsg(msg.from, decoded);
       } else {
         logger.error('Bad info', event);
@@ -382,7 +382,7 @@ export default class Client {
       }
       const clientId = event.params.userid.split('@').shift();
       const decoded = this._decode(event.params.eventData);
-      logger.debug('Event', clientId, decoded); // debug.
+      logger.client('Event', clientId, decoded);
       this.onEvent(clientId, decoded);
     } else if (event.method === 'verto.punt') {
       logger.info('Punt');
