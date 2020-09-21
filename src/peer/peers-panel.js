@@ -38,7 +38,7 @@ export default class PeersPanel {
   }
 
   setOnline() {
-    this.statusMsg.innerHTML = 'Waiting for peers';
+    this.statusMsg.innerHTML = 'Waiting for others to join.';
   }
 
   setOffline() {
