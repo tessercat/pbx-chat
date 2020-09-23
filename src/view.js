@@ -63,12 +63,14 @@ class ActivityWatcher {
 
 class AlertModal {
 
-  constructor(header, closeHandler) {
+  constructor(header) {
     this.header = header;
     this.body = this._messagePanel();
-    this.footer = this._footer(closeHandler);
+    this.footer = this._footer();
+    this.modalContent = [this.header, this.body, this.footer];
     this.messageDiv = this.body.querySelector('#alert-message');
     this.message = null;
+    this.onClose = () => {};
   }
 
   _messagePanel() {
@@ -80,22 +82,17 @@ class AlertModal {
     return section;
   }
 
-  _footer(closeHandler) {
+  _footer() {
     const button = document.createElement('button');
     button.textContent = 'OK';
     button.setAttribute('title', 'Acknowledge this alert');
     button.style.float = 'right';
     button.addEventListener('click', () => {
-      this.message = null;
-      closeHandler();
+      this.onClose();
     });
     const footer = document.createElement('footer');
     footer.append(button);
     return footer;
-  }
-
-  getContent() {
-    return [this.header, this.body, this.footer];
   }
 
   isActive() {
@@ -112,6 +109,7 @@ export default class View {
 
   constructor() {
     this.navBar = document.querySelector('#nav-bar');
+    this.activityWatcher = new ActivityWatcher(this.navBar);
     this.navMenu = document.querySelector('#nav-menu');
     this.navStatus = document.querySelector('#nav-status');
     this.channelInfoPanel = document.querySelector('#channel-info');
@@ -119,12 +117,25 @@ export default class View {
     this.modalControl = document.querySelector('#modal-control');
     this.modalOverlay = document.querySelector('#modal-overlay');
     this.videoElement = document.querySelector('#media-player');
-    this.activityWatcher = new ActivityWatcher(this.navBar);
+    this._addEscapeListener();
     this.alertModal = new AlertModal(
-      this.getModalHeader('Alert'), this._hideAlert.bind(this)
+      this.modalHeader('Alert')
     );
+    this.alertModal.onClose = this._onCloseAlert.bind(this)
     this.modal = null;
     this.oldModal = null;
+  }
+
+  _addEscapeListener() {
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        if (this.modal && this.modal.onModalEscape) {
+          this.modal.onModalEscape();
+        } else if (this.alertModal.isActive()) {
+          this._onCloseAlert();
+        }
+      }
+    });
   }
 
   _setContent(container, ...elements) {
@@ -144,7 +155,7 @@ export default class View {
       this.modalControl.disabled = true;
       this.modalOverlay.classList.add('disabled');
     }
-    this._setContent(this.modalContent, ...modal.getContent());
+    this._setContent(this.modalContent, ...modal.modalContent);
   }
 
   addTrack(track) {
@@ -172,24 +183,19 @@ export default class View {
     this.channelInfoPanel.style.display = 'unset';
   }
 
-  setNavStatus(message) {
-    if (!this.navStatusLabel) {
-      this.navStatusLabel = document.createElement('label');
-      this.navStatusLabel.classList.add('pseudo', 'button');
-      this._setContent(this.navStatus, this.navStatusLabel);
-    }
-    this.navStatusLabel.textContent = message;
+  setNavStatus(...elements) {
+    this._setContent(this.navStatus, ...elements);
   }
 
-  setNavMenuContent(...elements) {
+  setNavMenu(...elements) {
     this._setContent(this.navMenu, ...elements);
   }
 
-  setChannelInfoContent(...elements) {
+  setChannelInfo(...elements) {
     this._setContent(this.channelInfoPanel, ...elements);
   }
 
-  getModalHeader(title, enableCloseControl = false) {
+  modalHeader(title, enableCloseControl = false) {
     const heading = document.createElement('h3');
     heading.textContent = title;
     const header = document.createElement('header');
@@ -207,8 +213,8 @@ export default class View {
   /*
    * Showing an alert message hides the existing modal, if any. The hidden
    * modal is permanently hidden and doesn't re-appear when the alert is
-   * dismissed unless the hidden modal has a hasContent method that returns
-   * something truthy.
+   * dismissed unless the hidden modal has a hasModalContent method that
+   * returns something truthy.
    */
 
   showAlert(message) {
@@ -219,11 +225,12 @@ export default class View {
     this.modalControl.checked = true;
   }
 
-  _hideAlert() {
+  _onCloseAlert() {
+    this.alertModal.message = null;
     if (this.oldModal) {
       this.modal = this.oldModal;
       this.oldModal = null;
-      if (this.modal.hasContent && this.modal.hasContent()) {
+      if (this.modal.hasModalContent && this.modal.hasModalContent()) {
         this._setModalContent(this.modal);
       } else {
         this.modal = null;
@@ -240,19 +247,27 @@ export default class View {
    */
 
   showModal(modal) {
-    if (!modal || !modal.getContent) {
+    if (!modal || !modal.modalContent) {
       return
+    }
+    if (modal.hasModalContent && !modal.hasModalContent()) {
+      return;
     }
     if (this.alertModal.isActive()) {
       if (modal !== this.oldModal) {
         this.oldModal = modal;
       }
     } else {
-      if (modal !== this.modal) {
+      if (modal === this.modal) {
+        this.modalControl.checked = true;
+      } else {
         this.modal = modal;
         this._setModalContent(modal);
+        this.modalControl.checked = true;
+        if (this.modal.setFocus) {
+          this.modal.setFocus();
+        }
       }
-      this.modalControl.checked = true;
     }
   }
 

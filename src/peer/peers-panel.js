@@ -8,10 +8,13 @@ export default class PeersPanel {
 
   constructor() {
     this.panel = this._panel();
+    this.panelContent = [this.panel];
     this.statusMsg = this._statusMsg();
     this.setOffline();
     this.panel.append(this.statusMsg);
     this.peers = {};
+    this.onOffer = () => {};
+    this.displayName = () => {return 'N/A'};
   }
 
   _panel() {
@@ -20,15 +23,33 @@ export default class PeersPanel {
     div.style.marginRight = 'auto';
     div.style.maxWidth = '600px'
     div.style.padding = '1em';
-    const mm = matchMedia('(min-width: 600px)');
+    const mm = matchMedia('(min-width: 480px)');
     mm.addListener((mm) => {
       if (mm.matches) {
-        div.style.maxWidth = '600px'
+        div.style.maxWidth = '480px'
       } else {
         div.style.maxWidth = '100%';
       }
+      for (const clientId in this.peers) {
+        this._setPeerName(this.peers[clientId]);
+      }
     });
     return div;
+  }
+
+  _setPeerName(peer) {
+    peer.label.textContent = this.displayName(
+      peer.clientId, peer.peerName, 480
+    );
+    if (peer.peerName) {
+      peer.offerButton.setAttribute(
+        'title', `Connect to ${peer.peerName} (${peer.peerId})`
+      );
+      peer.label.setAttribute('title', `${peer.peerName} (${peer.peerId})`);
+    } else {
+      peer.offerButton.setAttribute('title', `Connect to ${peer.peerId}`);
+      peer.label.removeAttribute('title');
+    }
   }
 
   _statusMsg() {
@@ -45,48 +66,51 @@ export default class PeersPanel {
     this.statusMsg.innerHTML = 'Offline';
   }
 
-  getContent() {
-    return [this.panel];
-  }
-
-  addPeer(peerId, offerHandler) {
-    if (this.peers[peerId]) {
-      this.peers[peerId].added = new Date();
+  addPeer(clientId, peerName) {
+    if (this.peers[clientId]) {
+      this.peers[clientId].added = new Date();
+      if (peerName !== this.peers[clientId].peerName) {
+        this.peers[clientId].peerName = peerName;
+        this._setPeerName(this.peers[clientId]);
+      }
       return;
     }
     if (Object.keys(this.peers).length === 0) {
       this.statusMsg.remove();
     }
-    const peerName = peerId.substr(0, 5);
     const peer = document.createElement('article');
-    peer.added = new Date();
     peer.classList.add('card');
     const section = document.createElement('section');
     section.style.padding = '0.5em';
     peer.append(section);
     const label = document.createElement('label');
-    label.textContent = peerName;
-    label.classList.add('pseudo', 'button');
+    label.classList.add('button', 'pseudo');
     section.append(label);
     const offerButton = document.createElement('button')
     offerButton.textContent = 'Connect';
-    offerButton.setAttribute('title', `Connect to ${peerName}`);
     offerButton.style.float = 'right';
     offerButton.addEventListener('click', () => {
-      offerHandler(peerId);
+      this.onOffer(clientId);
     });
     section.append(offerButton);
-    this.peers[peerId] = peer;
+    peer.added = new Date();
+    peer.clientId = clientId;
+    peer.peerName = peerName;
+    peer.peerId = this.displayName(clientId);
+    peer.offerButton = offerButton;
+    peer.label = label;
+    this.peers[clientId] = peer;
+    this._setPeerName(peer);
     this.panel.append(peer);
-    logger.info('Added peer', peerId);
+    logger.info('Added peer', clientId);
   }
 
-  removePeer(peerId) {
-    const peer = this.peers[peerId];
-    delete this.peers[peerId];
+  removePeer(clientId) {
+    const peer = this.peers[clientId];
+    delete this.peers[clientId];
     if (peer) {
       peer.remove();
-      logger.info('Removed peer', peerId);
+      logger.info('Removed peer', clientId);
     }
     if (Object.keys(this.peers).length === 0) {
       this.panel.append(this.statusMsg);
@@ -94,8 +118,8 @@ export default class PeersPanel {
   }
 
   reset() {
-    Object.keys(this.peers).forEach(peerId => {
-      this.removePeer(peerId);
+    Object.keys(this.peers).forEach(clientId => {
+      this.removePeer(clientId);
     });
   }
 
@@ -103,15 +127,15 @@ export default class PeersPanel {
     const expired = [];
     const now = new Date();
     logger.debug('Cleaning expired peers');
-    for (const peerId in this.peers) {
-      const diff = now - this.peers[peerId].added;
+    for (const clientId in this.peers) {
+      const diff = now - this.peers[clientId].added;
       if (diff > 60000) {
-        expired.push(peerId);
+        expired.push(clientId);
       }
     }
-    for (const peerId of expired) {
-      logger.info('Peer expired', peerId);
-      this.removePeer(peerId);
+    for (const clientId of expired) {
+      logger.info('Peer expired', clientId);
+      this.removePeer(clientId);
     }
     return expired;
   }

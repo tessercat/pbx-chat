@@ -6,38 +6,61 @@ import logger from '../logger.js';
 
 export default class OffersDialog {
 
-  constructor(view) {
-    this.header = view.getModalHeader('Offers');
+  constructor(header) {
+    this.header = header;
     this.panel = document.createElement('section');
     this.footer = document.createElement('footer');
+    this.modalContent = [this.header, this.panel, this.footer];
     this.offers = {};
     this.ignored = {};
+    this.onAccept = () => {};
+    this.onIgnore = () => {};
+    this.displayName = () => {return 'N/A'};
   }
 
-  getContent() {
-    return [this.header, this.panel, this.footer];
+  _setPeerName(offer) {
+    offer.label.textContent = this.displayName(
+      offer.clientId, offer.peerName, 480
+    );
+    if (offer.peerName) {
+      offer.ignoreButton.setAttribute(
+        'title', `Ignore offer from ${offer.peerName} (${offer.peerId})`
+      );
+      offer.acceptButton.setAttribute(
+        'title', `Accept offer from ${offer.peerName} (${offer.peerId})`
+      );
+      offer.label.setAttribute(
+        'title', `${offer.peerName} (${offer.peerId})`
+      );
+    } else {
+      offer.ignoreButton.setAttribute(
+        'title', `Ignore offer from ${offer.peerId}`
+      );
+      offer.acceptButton.setAttribute(
+        'title', `Accept offer from ${offer.peerId}`
+      );
+      offer.label.removeAttribute('title');
+    }
   }
 
-  hasContent() {
-    return Object.keys(this.offers).length > 0;
-  }
-
-  addOffer(peerId, ignoreHandler, acceptHandler) {
-    if (this.offers[peerId]) {
-      this.offers[peerId].added = new Date();
+  addOffer(clientId, peerName) {
+    if (this.offers[clientId]) {
+      this.offers[clientId].added = new Date();
+      if (peerName !== this.offers[clientId].peerName) {
+        this.offers[clientId].peerName = peerName;
+        this._setPeerName(this.offers[clientId]);
+      }
       return;
     }
-    if (this.ignored[peerId]) {
-      this.ignored[peerId].added = new Date();
+    if (this.ignored[clientId]) {
+      this.ignored[clientId].added = new Date();
       return;
     }
-    const peerName = peerId.substr(0, 5);
-    const peer = document.createElement('article');
-    peer.added = new Date();
-    peer.classList.add('card')
+    const offer = document.createElement('article');
+    offer.classList.add('card')
     const section = document.createElement('section');
     section.style.padding = '0.5em';
-    peer.append(section);
+    offer.append(section);
     const label = document.createElement('label');
     label.textContent = peerName;
     label.classList.add('pseudo', 'button');
@@ -48,7 +71,7 @@ export default class OffersDialog {
     acceptButton.style.float = 'right';
     acceptButton.style.marginLeft = '0.2em';
     acceptButton.addEventListener('click', () => {
-      acceptHandler(peerId);
+      this.onAccept(clientId);
     });
     section.append(acceptButton);
     const ignoreButton = document.createElement('button');
@@ -57,38 +80,46 @@ export default class OffersDialog {
     ignoreButton.style.float = 'right';
     ignoreButton.classList.add('warning');
     ignoreButton.addEventListener('click', () => {
-      ignoreHandler(peerId);
+      this.onIgnore(clientId);
     });
     section.append(ignoreButton);
-    this.offers[peerId] = peer;
-    this.panel.append(peer);
-    logger.info('Received offer', peerId);
+    offer.added = new Date();
+    offer.clientId = clientId;
+    offer.peerName = peerName;
+    offer.peerId = this.displayName(clientId);
+    offer.ignoreButton = ignoreButton;
+    offer.acceptButton = acceptButton;
+    offer.label = label;
+    this.offers[clientId] = offer;
+    this._setPeerName(offer);
+    this.panel.append(offer);
+    logger.info('Received offer', clientId);
   }
 
-  ignoreOffer(peerId) {
-    if (this.ignored[peerId]) {
-      this.ignored[peerId].added = new Date();
+  ignoreOffer(clientId) {
+    if (this.ignored[clientId]) {
+      this.ignored[clientId].added = new Date();
     } else {
-      this.ignored[peerId] = {added: new Date()};
-      logger.info('Ignored offer', peerId);
+      this.ignored[clientId] = {added: new Date()};
+      logger.info('Ignored offer', clientId);
     }
   }
 
-  removeOffer(peerId) {
-    if (this.ignored[peerId]) {
-      delete this.ignored[peerId];
-      logger.info('Removed ignored offer', peerId);
+  removeOffer(clientId) {
+    if (this.ignored[clientId]) {
+      delete this.ignored[clientId];
+      logger.info('Removed ignored offer', clientId);
     }
-    if (this.offers[peerId]) {
-      this.offers[peerId].remove();
-      delete this.offers[peerId];
-      logger.info('Removed offer', peerId);
+    if (this.offers[clientId]) {
+      this.offers[clientId].remove();
+      delete this.offers[clientId];
+      logger.info('Removed offer', clientId);
     }
   }
 
   reset() {
-    Object.keys(this.offers).forEach(peerId => {
-      this.removeOffer(peerId);
+    Object.keys(this.offers).forEach(clientId => {
+      this.removeOffer(clientId);
     });
   }
 
@@ -96,21 +127,21 @@ export default class OffersDialog {
     logger.debug('Cleaning expired offers');
     const expired = new Set();
     const now = new Date();
-    for (const peerId in this.offers) {
-      const diff = now - this.offers[peerId].added;
+    for (const clientId in this.offers) {
+      const diff = now - this.offers[clientId].added;
       if (diff > 60000) {
-        expired.add(peerId);
+        expired.add(clientId);
       }
     }
-    for (const peerId in this.ignored) {
-      const diff = now - this.ignored[peerId].added;
+    for (const clientId in this.ignored) {
+      const diff = now - this.ignored[clientId].added;
       if (diff > 60000) {
-        expired.add(peerId);
+        expired.add(clientId);
       }
     }
-    for (const peerId of expired) {
-      logger.info('Offer expired', peerId);
-      this.removeOffer(peerId);
+    for (const clientId of expired) {
+      logger.info('Offer expired', clientId);
+      this.removeOffer(clientId);
     }
   }
 }

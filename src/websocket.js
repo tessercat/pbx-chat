@@ -14,6 +14,9 @@ export default class MyWebSocket {
     this.retryBackoff = 5;
     this.retryMaxWait = 30;
     this.retryTimer = null;
+    this.onConnect = () => {};
+    this.onDisconnect = () => {};
+    this.onMessage = () => {};
   }
 
   isConnected() {
@@ -23,7 +26,7 @@ export default class MyWebSocket {
     return true;
   }
 
-  _setRetryTimer(...handlers) {
+  _setRetryTimer() {
     let delay = this.retryCount * this.retryBackoff;
     if (delay > this.retryMaxWait) {
       delay = this.retryMaxWait;
@@ -36,13 +39,13 @@ export default class MyWebSocket {
       );
     }
     logger.info(`Waiting ${delay}s after ${this.retryCount} tries`);
-    this.retryTimer = setTimeout((...handlers) => {
+    this.retryTimer = setTimeout(() => {
       this.retryCount += 1;
-      this.connect(...handlers);
-    }, delay * 1000, ...handlers);
+      this.connect();
+    }, delay * 1000);
   }
 
-  connect(connectHandler, disconnectHandler, messageHandler) {
+  connect() {
     if (!this.isConnected() && !this.isConnecting) {
       this.isConnecting = true;
       this.isHalted = false;
@@ -55,19 +58,19 @@ export default class MyWebSocket {
           this.retryCount = 0;
           this.isConnecting = false;
           this.socket = socket;
-          connectHandler(event);
+          this.onConnect(event);
         }
       }
       socket.onclose = (event) => {
-        disconnectHandler(event);
+        this.onDisconnect(event);
         clearTimeout(this.retryTimer);
         this.isConnecting = false;
         if (!this.isHalted) {
-          this._setRetryTimer(...arguments);
+          this._setRetryTimer();
         }
       }
       socket.onmessage = (event) => {
-        messageHandler(event);
+        this.onMessage(event);
       }
     }
   }

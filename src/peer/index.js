@@ -10,7 +10,7 @@ if (adapter.browserDetails.browser.startsWith("Not")) {
 } else {
   window.addEventListener('load', function () {
     document.debugLogEnabled = false;
-    document.clientLogEnabled = true;
+    document.clientLogEnabled = false;
     document.infoLogEnabled = true;
     document.peer = new Peer();
     document.peer.connect();

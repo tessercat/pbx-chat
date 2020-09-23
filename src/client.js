@@ -34,36 +34,51 @@ export default class Client {
   constructor() {
     this.channelId = location.pathname.split('/').pop();
     this.ws = new MyWebSocket();
+    this._setWsListeners();
     this.pingTimer = null;
     this.lastActive = null;
     this._addActivityListeners();
     this.currentRequestId = 0;
     this.authing = false;
     this.responseCallbacks = {};
-  }
-
-  setSocketHandlers(connectHandler, disconnectHandler) {
-    this.onConnect = connectHandler ? connectHandler : () => {};
-    this.onDisconnect = disconnectHandler ? disconnectHandler : () => {};
-  }
-
-  setSessionHandlers(
-      loginHandler, loginErrorHandler, readyHandler,
-      pingHandler, pingErrorHandler) {
-    this.onLogin = loginHandler ? loginHandler : () => {};
-    this.onLoginError = loginErrorHandler ? loginErrorHandler : () => {};
-    this.onReady = readyHandler ? readyHandler : () => {};
-    this.onPing = pingHandler ? pingHandler : () => {};
-    this.onPingError = pingErrorHandler ? pingErrorHandler : () => {};
-  }
-
-  setMessageHandlers(eventHandler, infoMsgHandler, puntHandler) {
-    this.onEvent = eventHandler ? eventHandler : () => {};
-    this.onInfoMsg = infoMsgHandler ? infoMsgHandler : () => {};
-    this.onPunt = puntHandler ? puntHandler : () => {};
+    this.sessionData = this._initSessionData();
+    this.isSubscribed = false;
+    this.onConnect = () => {};
+    this.onDisconnect = () => {};
+    this.onLogin = () => {};
+    this.onLoginError = () => {};
+    this.onReady = () => {};
+    this.onPing = () => {};
+    this.onPingError = () => {};
+    this.onPunt = () => {};
+    this.onEvent = () => {};
+    this.onMessage = () => {};
   }
 
   // Channel client interface.
+
+  getSessionData(key) {
+    return this.sessionData[key] || null;
+  }
+
+  setSessionData(key, value) {
+    let changed = false;
+    if (value && value !== this.sessionData[key]) {
+      changed = true;
+      this.sessionData[key] = value;
+      logger.info('Set session', key);
+    } else if (this.sessionData[key] && !value) {
+      changed = true;
+      delete this.sessionData[key];
+      logger.info('Deleted session', key);
+    }
+    if (changed) {
+      localStorage.setItem(
+        this.channelId, JSON.stringify(this.sessionData)
+      );
+    }
+    return changed;
+  }
 
   isConnected() {
     return this.ws.isConnected();
@@ -75,12 +90,8 @@ export default class Client {
         this.sessionId = sessionId;
         this.clientId = loginData.clientId;
         this.password = loginData.password;
-        this.ws.connect(
-          this._wsConnectHandler.bind(this),
-          this._wsDisconnectHandler.bind(this),
-          this._wsMessageHandler.bind(this),
-        );
-      }
+        this.ws.connect();
+      };
       const onError = (error) => {
         this.onLoginError(error.message);
       }
@@ -95,12 +106,14 @@ export default class Client {
 
   subscribe(onSuccess, onError) {
     const onRequestSuccess = () => {
+      this.isSubscribed = true;
       logger.info('Subscribed');
       if (onSuccess) {
         onSuccess();
       }
     }
     const onRequestError = (error) => {
+      this.isSubscribed = false;
       logger.error('Subscription error', error);
       if (onError) {
         onError(error);
@@ -138,7 +151,7 @@ export default class Client {
     }
   }
 
-  sendInfoMsg(clientId, msgData, onSuccess, onError) {
+  sendMessage(clientId, msgData, onSuccess, onError) {
     logger.client('Send', clientId, msgData);
     const encoded = this._encode(msgData);
     if (encoded) {
@@ -157,6 +170,12 @@ export default class Client {
 
   // Websocket event handlers.
 
+  _setWsListeners() {
+    this.ws.onConnect = this._wsConnectHandler.bind(this);
+    this.ws.onDisconnect = this._wsDisconnectHandler.bind(this);
+    this.ws.onMessage = this._wsMessageHandler.bind(this);
+  }
+
   _wsConnectHandler() {
     logger.info('Connected');
     this.onConnect();
@@ -171,6 +190,7 @@ export default class Client {
   }
 
   _wsDisconnectHandler() {
+    this.isSubscribed = false;
     clearTimeout(this.pingTimer);
     const isTimeout = this._isTimeout();
     this.lastActive = null;
@@ -194,16 +214,19 @@ export default class Client {
 
   // Connection and verto session maintenance methods.
 
+  _initSessionData() {
+    return this.sessionData = JSON.parse(
+      localStorage.getItem(this.channelId)
+    ) || {};
+  }
+
   _getSessionId(replace) {
-    const sessionData = JSON.parse(localStorage.getItem(this.channelId)) || {};
-    let sessionId = sessionData.sessionId;
+    let sessionId = this.getSessionData('sessionId');
     if (replace || !sessionId) {
       const url = URL.createObjectURL(new Blob());
       URL.revokeObjectURL(url);
       sessionId = url.split('/').pop();
-      sessionData.sessionId = sessionId;
-      localStorage.setItem(this.channelId, JSON.stringify(sessionData));
-      logger.info('New session', sessionId);
+      this.setSessionData('sessionId', sessionId);
     }
     return sessionId;
   }
@@ -372,7 +395,7 @@ export default class Client {
       if (msg) {
         const decoded = this._decode(msg.body);
         logger.client('Info', msg.from, decoded);
-        this.onInfoMsg(msg.from, decoded);
+        this.onMessage(msg.from, decoded);
       } else {
         logger.error('Bad info', event);
       }

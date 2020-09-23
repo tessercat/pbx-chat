@@ -6,27 +6,25 @@ import logger from '../logger.js';
 
 export default class ConnectDialog {
 
-  constructor(closeHandler) {
+  constructor() {
     this.section = document.createElement('section');
-    this.footer = this._footer(closeHandler);
+    this.footer = this._footer();
+    this.modalContent = [this.section, this.footer];
     this.offerId = null;
+    this.onCancel = () => {};
   }
 
-  _footer(cancelHandler) {
+  _footer() {
     const cancelButton = document.createElement('button');
     cancelButton.textContent = 'Cancel';
     cancelButton.setAttribute('title', 'Cancel the offer');
     cancelButton.style.float = 'right';
     cancelButton.addEventListener('click', () => {
-      cancelHandler();
+      this.onCancel();
     });
     const footer = document.createElement('footer');
     footer.append(cancelButton);
     return footer;
-  }
-
-  getContent() {
-    return [this.section, this.footer];
   }
 
   isOffering() {

@@ -4,6 +4,7 @@
  */
 import Client from '../client.js';
 import Connection from '../connection.js';
+import NameDialog from './name-dialog.js';
 import PeersPanel from './peers-panel.js';
 import OffersDialog from './offers-dialog.js';
 import OfferDialog from './offer-dialog.js';
@@ -27,17 +28,60 @@ const MESSAGES = {
 export default class Peer {
 
   constructor() {
+
+    // View and nav menu
     this.view = new View();
-    this.client = new Client();
-    this._setHandlers();
+
+    // Connection
     this.connection = new Connection();
-    this.peersPanel = new PeersPanel();
-    this.view.setChannelInfoContent(...this.peersPanel.getContent());
-    this.offersDialog = new OffersDialog(this.view);
-    this.offerDialog = new OfferDialog(this._cancelOffer.bind(this));
+
+    // Client
+    this.client = new Client();
+    this.client.onConnect = this._onConnect.bind(this);
+    this.client.onDisconnect = this._onDisconnect.bind(this);
+    this.client.onLogin = this._onLogin.bind(this);
+    this.client.onLoginError = this._onLoginError.bind(this);
+    this.client.onReady = this._onReady.bind(this);
+    this.client.onPing = this._onPing.bind(this);
+    this.client.onPunt = this._onPunt.bind(this);
+    this.client.onEvent = this._onEvent.bind(this);
+    this.client.onMessage = this._onMessage.bind(this);
+
+    // Nav menu items
     this.onlineLabel = this._onlineLabel();
     this.offlineLabel = this._offlineLabel();
-    this.view.setNavMenuContent(this.offlineLabel);
+    this.view.setNavMenu(this.offlineLabel);
+
+    // NameDialog
+    this.peerId = null;
+    this.peerName = null;
+    this.nameButton = this._nameButton();
+    this.nameDialog = new NameDialog(
+      this.view.modalHeader('Enter your name')
+    )
+    this.nameDialog.onSubmit = this._onSubmitName.bind(this);
+    this.nameDialog.onClose = this._onCancelName.bind(this);
+    this.nameDialog.onModalEscape = this._onCancelName.bind(this);
+
+    // PeersPanel
+    this.peersPanel = new PeersPanel();
+    this.peersPanel.displayName = this._displayName;
+    this.peersPanel.onOffer = this._onOffer.bind(this);
+    this.view.setChannelInfo(...this.peersPanel.panelContent);
+
+    // OfferDialog
+    this.offerDialog = new OfferDialog();
+    this.offerDialog.onCancel = this._onCancelOffer.bind(this);
+    this.offerDialog.onModalEscape = this._onCancelOffer.bind(this);
+
+    // OffersDialog
+    this.offersDialog = new OffersDialog(
+      this.view.modalHeader('Offers'),
+    );
+    this.offersDialog.displayName = this._displayName;
+    this.offersDialog.onAccept = this._onAcceptOffer.bind(this)
+    this.offersDialog.onIgnore = this._onIgnoreOffer.bind(this);
+    this.offersDialog.hasModalContent = this._hasOffers.bind(this);
   }
 
   connect() {
@@ -48,7 +92,20 @@ export default class Peer {
     this.client.disconnect();
   }
 
-  // Nav menu button builders.
+  // Nav menu label/button builders.
+
+  _nameButton() {
+    const button = document.createElement('button');
+    button.classList.add('pseudo');
+    window.matchMedia(`(min-width: 480px)`).addListener(() => {
+      this._setButtonName();
+    });
+    button.addEventListener('click', () => {
+      this._initNameDialog();
+      this.view.showModal(this.nameDialog);
+    });
+    return button;
+  }
 
   _offlineLabel() {
     const label = document.createElement('label');
@@ -64,30 +121,93 @@ export default class Peer {
     return label;
   }
 
-  _disconnectButton(peerId) {
+  _closeButton(clientId) {
     const button = document.createElement('button');
-    button.textContent = 'Disconnect';
-    button.classList.add('pseudo', 'button');
+    button.textContent = 'Close';
+    button.classList.add('pseudo');
     button.setAttribute('title', 'Close the connection');
     button.addEventListener('click', () => {
       logger.info('Closing connection');
       this._closeConnection();
-      this.client.sendInfoMsg(peerId, {peerAction: MESSAGES.close});
-      this.client.publish({peerStatus: STATUS.available});
-      if (this.offersDialog.hasContent()) {
-        this.view.showModal(this.offersDialog);
-      }
+      this.client.sendMessage(clientId, {peerAction: MESSAGES.close});
+      this.client.publish({
+        peerStatus: STATUS.available,
+        peerName: this.peerName
+      });
+      this.view.showModal(this.offersDialog);
     });
     return button;
   }
 
-  // Button event connection negotiation handlers.
+  // Display name utilities.
 
-  _offerConnection(peerId) {
+  _displayName(clientId, peerName, clipWidth) {
+    if (peerName && window.innerWidth < clipWidth) {
+      let parts = peerName.split(' ');
+      if (parts[0].length > 8) {
+        return `${parts[0].substring(0, 6)}..`
+      }
+      if (parts.length === 1) {
+        return parts[0];
+      }
+      return `${parts[0]}`
+    }
+    if (peerName) {
+      return peerName;
+    }
+    return clientId.substr(0, 5);
+  }
+
+  _setButtonName() {
+    this.nameButton.textContent = this._displayName(
+      this.client.clientId, this.peerName, 480
+    );
+    if (this.peerName) {
+      this.nameButton.setAttribute(
+        'title', `${this.peerName} (${this.peerId})`
+      );
+    } else {
+      this.nameButton.setAttribute('title', 'Click to change your name');
+    }
+  }
+
+  // NameDialog callbacks.
+
+  _initNameDialog() {
+    this.nameDialog.init(this.peerId, this.peerName);
+  }
+
+  _onSubmitName(peerName) {
+    this.view.hideModal(this.nameDialog);
+    this.peerName = peerName; // Validation in modal.
+    this._setButtonName();
+    const changed = this.client.setSessionData('peerName', peerName);
+    if (changed && this.client.isSubscribed && this.connection.isIdle()) {
+      this.client.publish({
+        peerStatus: STATUS.available,
+        peerName: this.peerName
+      });
+    } else if (this.client.isConnected() && !this.client.isSubscribed) {
+      this._subscribe();
+    }
+  }
+
+  _onCancelName() {
+    this.view.hideModal(this.nameDialog);
+    if (!this.client.isSubscribed) {
+      this._subscribe();
+    }
+  }
+
+  // PeersPanel callbacks.
+
+  _onOffer(clientId) {
     const onSuccess = () => {
-      this.client.sendInfoMsg(peerId, {peerAction: MESSAGES.offer});
+      this.client.sendMessage(
+        clientId, {peerAction: MESSAGES.offer, peerName: this.peerName}
+      );
       this.client.publish({peerStatus: STATUS.unavailable});
-      this.offerDialog.setOffering(peerId);
+      this.offerDialog.setOffering(clientId);
     };
     const onError = (error) => {
       logger.info('Error offering connection', error.message);
@@ -97,87 +217,97 @@ export default class Peer {
       this.connection.close();
     };
     if (this.connection.isIdle()) {
-      logger.info('Offering connection', peerId);
-      this.connection.init(peerId, true, location.hostname);
+      logger.info('Offering connection', clientId);
+      this.connection.init(clientId, true, location.hostname);
       this.offerDialog.setInitializing();
       this.view.showModal(this.offerDialog);
       this.connection.initUserMedia(onSuccess, onError, true, true);
     }
   }
 
-  _cancelOffer() {
+  _onCancelOffer() {
     if (this.offerDialog.isOffering()) {
       logger.info('Canceling offer');
-      this.client.sendInfoMsg(
+      this.client.sendMessage(
         this.offerDialog.offerId, {peerAction: MESSAGES.close}
       );
     }
     this.offerDialog.setClosed();
     this.view.hideModal(this.offerDialog);
     this.connection.close();
-    this.client.publish({peerStatus: STATUS.available});
-    if (this.offersDialog.hasContent()) {
-      this.view.showModal(this.offersDialog);
-    }
+    this.client.publish({
+      peerStatus: STATUS.available,
+      peerName: this.peerName
+    });
+    this.view.showModal(this.offersDialog);
   }
 
-  _ignoreOffer(peerId) {
-    this.offersDialog.removeOffer(peerId);
-    this.offersDialog.ignoreOffer(peerId);
-    if (!this.offersDialog.hasContent()) {
+  // OffersDialog callbacks.
+
+  _hasOffers() {
+    return Object.keys(this.offersDialog.offers).length > 0;
+  }
+
+  _onIgnoreOffer(clientId) {
+    this.offersDialog.removeOffer(clientId);
+    this.offersDialog.ignoreOffer(clientId);
+    if (!this._hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
   }
 
-  _acceptOffer(peerId) {
+  _onAcceptOffer(clientId) {
     const onSuccess = () => {
-      this.client.sendInfoMsg(peerId, {peerAction: MESSAGES.accept});
+      this.client.sendMessage(clientId, {peerAction: MESSAGES.accept});
       this.client.publish({peerStatus: STATUS.unavailable});
-      this._openConnection(peerId);
-      this.offersDialog.removeOffer(peerId);
+      this._openConnection(clientId);
+      this.offersDialog.removeOffer(clientId);
     };
     const onError = (error) => {
-      logger.info('Error accepting offer', peerId, error.message);
-      this.client.sendInfoMsg(peerId, {peerAction: MESSAGES.error});
+      logger.info('Error accepting offer', clientId, error.message);
+      this.client.sendMessage(clientId, {peerAction: MESSAGES.error});
       this.view.showAlert(error.message);
       this.view.showModal(this.offersDialog);
       this.view.hidePlayer();
       this.connection.close();
-      this.offersDialog.removeOffer(peerId);
+      this.offersDialog.removeOffer(clientId);
     };
     if (this.connection.isIdle()) {
-      logger.info('Accepted offer', peerId);
+      logger.info('Accepted offer', clientId);
       this.view.showPlayer();
       this.view.hideModal(this.offersDialog);
-      this.connection.init(peerId, false, location.hostname);
+      this.connection.init(clientId, false, location.hostname);
       this.connection.initUserMedia(onSuccess, onError, true, true);
     }
   }
 
-  // Button and message event connection negotiation handers.
+  // Connection negotiation button and message event handers.
 
-  _openConnection(peerId) {
-    if (this.connection.isConnectedTo(peerId)) {
+  _openConnection(clientId) {
+    if (this.connection.isConnectedTo(clientId)) {
       const trackHandler = (track) => {
         this.view.addTrack(track);
       };
       const candidateHandler = (candidate) => {
-        this.client.sendInfoMsg(peerId, candidate);
+        this.client.sendMessage(clientId, candidate);
         logger.info('Sent candidate');
       };
       const offerHandler = (sdp) => {
-        this.client.sendInfoMsg(peerId, sdp);
+        this.client.sendMessage(clientId, sdp);
         logger.info('Sent SDP');
       };
       const iceHandler = () => {
-        this.client.sendInfoMsg(peerId, {peerAction: MESSAGES.error});
+        this.client.sendMessage(clientId, {peerAction: MESSAGES.error});
         this.view.hidePlayer();
         this.connection.close();
         this.view.showAlert('ICE failed. Can\'t connect.');
         this.view.showModal(this.offersDialog);
-        this.client.publish({peerStatus: STATUS.available});
+        this.client.publish({
+          peerStatus: STATUS.available,
+          peerName: this.peerName
+        });
       };
-      this.view.setNavMenuContent(this._disconnectButton(peerId));
+      this.view.setNavMenu(this._closeButton(clientId));
       this.connection.open(
         trackHandler, candidateHandler, offerHandler, iceHandler
       );
@@ -187,38 +317,21 @@ export default class Peer {
   _closeConnection() {
     this.view.hidePlayer();
     this.connection.close();
-    this.view.setNavMenuContent(this.onlineLabel);
+    this.view.setNavMenu(this.onlineLabel);
   }
 
   // Client join/login/message handlers.
 
-  _setHandlers() {
-    this.client.setSocketHandlers(
-      this._connectHandler.bind(this),
-      this._disconnectHandler.bind(this)
-    );
-    this.client.setSessionHandlers(
-      null, this._loginErrorHandler.bind(this),
-      this._readyHandler.bind(this),
-      this._pingHandler.bind(this), null
-    )
-    this.client.setMessageHandlers(
-      this._eventHandler.bind(this),
-      this._messageHandler.bind(this),
-      this._puntHandler.bind(this)
-    );
-  }
-
-  _connectHandler() {
+  _onConnect() {
     this.peersPanel.setOnline();
-    this.view.setNavMenuContent(this.onlineLabel);
+    this.view.setNavMenu(this.onlineLabel);
   }
 
-  _disconnectHandler(isTimeout) {
+  _onDisconnect(isTimeout) {
     if (this.client.isConnected()) {
       this.client.publish({peerStatus: STATUS.gone});
     } else {
-      this.view.setNavMenuContent(this.offlineLabel);
+      this.view.setNavMenu(this.offlineLabel);
       this.peersPanel.setOffline();
       this.peersPanel.reset();
       this.offersDialog.reset();
@@ -235,78 +348,100 @@ export default class Peer {
     }
   }
 
-  _loginErrorHandler(message) {
+  _onLogin() {
+    this.peerId = this._displayName(this.client.clientId);
+  }
+
+  _onLoginError(message) {
     this.view.showAlert(`Login failed. ${message}.`);
   }
 
-  _readyHandler() {
+  _subscribe() {
     const onSuccess = () => {
-      this.client.publish({peerStatus: STATUS.ready});
+      this.client.publish({
+        peerStatus: STATUS.ready,
+        peerName: this.peerName
+      });
     };
     const onError = () => {
       this.view.showAlert('Subscription error');
     }
-    this.view.setNavStatus(this.client.clientId.substr(0, 5));
     this.client.subscribe(onSuccess, onError);
   }
 
-  _pingHandler() {
+  _onReady() {
+    this.peerName = this.client.getSessionData('peerName');
+    this._setButtonName();
+    this.view.setNavStatus(this.nameButton);
+    if (this.client.getSessionData('peerName')) {
+      this._subscribe();
+    } else {
+      this._initNameDialog();
+      this.view.showModal(this.nameDialog);
+    }
+  }
+
+  _onPing() {
     if (this.offerDialog.isOffering()) {
-      this.client.sendInfoMsg(
-        this.offerDialog.offerId, {peerAction: MESSAGES.offer}
+      this.client.sendMessage(
+        this.offerDialog.offerId,
+        {peerAction: MESSAGES.offer, peerName: this.peerName}
       );
     }
-    if (this.connection.isIdle()) {
-      this.client.publish({peerStatus: STATUS.available});
+    if (this.connection.isIdle() && this.client.isSubscribed) {
+      this.client.publish({
+        peerStatus: STATUS.available,
+        peerName: this.peerName
+      });
     }
     const expired = this.peersPanel.clean();
-    for (const peerId of expired) {
-      if (this.offerDialog.isOfferTo(peerId)) {
+    for (const clientId of expired) {
+      if (this.offerDialog.isOfferTo(clientId)) {
         this.offerDialog.setClosed('The other peer left the channel.');
         break;
       }
     }
     this.offersDialog.clean();
-    if (!this.offersDialog.hasContent()) {
+    if (!this._hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
   }
 
-  _eventHandler(peerId, eventData) {
+  _onEvent(clientId, eventData) {
     if (eventData.peerStatus === STATUS.ready) {
-      this._handleReady(peerId);
+      this._handleReady(clientId, eventData.peerName);
     } else if (eventData.peerStatus === STATUS.available) {
-      this._handleAvailable(peerId);
+      this._handleAvailable(clientId, eventData.peerName);
     } else if (eventData.peerStatus === STATUS.unavailable) {
-      this._handleUnavailable(peerId);
+      this._handleUnavailable(clientId);
     } else if (eventData.peerStatus === STATUS.gone) {
-      this._handleGone(peerId);
+      this._handleGone(clientId);
     } else {
-      logger.error('Bad event', peerId, eventData);
+      logger.error('Bad event', clientId, eventData);
     }
   }
 
-  _messageHandler(peerId, eventData) {
+  _onMessage(clientId, eventData) {
     if (eventData.peerAction === MESSAGES.offer) {
-      this._handleOffer(peerId);
+      this._handleOffer(clientId, eventData.peerName);
     } else if (eventData.peerAction === MESSAGES.accept) {
-      this._handleAccept(peerId);
+      this._handleAccept(clientId);
     } else if (eventData.peerAction === MESSAGES.close) {
-      this._handleClose(peerId);
+      this._handleClose(clientId);
     } else if (eventData.peerAction === MESSAGES.error) {
-      this._handleError(peerId);
+      this._handleError(clientId);
     } else if (eventData.peerStatus === STATUS.available) {
-      this._handleAvailable(peerId);
+      this._handleAvailable(clientId, eventData.peerName);
     } else if ('candidate' in eventData) {
-      this._handleCandidate(peerId, eventData);
+      this._handleCandidate(clientId, eventData);
     } else if ('sdp' in eventData) {
-      this._handleSdp(peerId, eventData);
+      this._handleSdp(clientId, eventData);
     } else {
-      logger.error('Bad message', peerId, eventData);
+      logger.error('Bad message', clientId, eventData);
     }
   }
 
-  _puntHandler() {
+  _onPunt() {
     this.view.showAlert(
       'Offline. '
       + 'You\'re logged in from another tab '
@@ -316,87 +451,103 @@ export default class Peer {
 
   // Peer-specific signal layer message/event handlers.
 
-  _handleOffer(peerId) {
-    this.offersDialog.addOffer(
-      peerId, this._ignoreOffer.bind(this), this._acceptOffer.bind(this)
-    );
-    if (this.connection.isIdle() && this.offersDialog.hasContent()) {
+  _handleOffer(clientId, peerName) {
+    if (!peerName || !this.nameDialog.isValid(peerName)) {
+      peerName = '';
+    }
+    this.offersDialog.addOffer(clientId, peerName);
+    if (this.connection.isIdle()) {
       this.view.showModal(this.offersDialog);
     }
   }
 
-  _handleAccept(peerId) {
-    if (this.connection.isConnectedTo(peerId)) {
+  _handleAccept(clientId) {
+    if (this.connection.isConnectedTo(clientId)) {
       this.view.showPlayer();
       this.offerDialog.setClosed();
       this.view.hideModal(this.offerDialog);
-      this._openConnection(peerId);
+      this._openConnection(clientId);
     }
   }
 
-  _handleClose(peerId) {
-    if (this.offerDialog.isOfferTo(peerId)) {
+  _handleClose(clientId) {
+    if (this.offerDialog.isOfferTo(clientId)) {
       this.offerDialog.setClosed('The other peer rejected the offer.');
-    } else if (this.connection.isConnectedTo(peerId)) {
+    } else if (this.connection.isConnectedTo(clientId)) {
       this._closeConnection();
-      this.client.publish({peerStatus: STATUS.available});
-      if (this.offersDialog.hasContent()) {
-        this.view.showModal(this.offersDialog);
-      }
+      this.client.publish({
+        peerStatus: STATUS.available,
+        peerName: this.peerName
+      });
+      this.view.showModal(this.offersDialog);
     }
-    this.offersDialog.removeOffer(peerId);
-    if (!this.offersDialog.hasContent()) {
+    this.offersDialog.removeOffer(clientId);
+    if (!this._hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
   }
 
-  _handleError(peerId) {
-    if (this.offerDialog.isOfferTo(peerId)) {
+  _handleError(clientId) {
+    if (this.offerDialog.isOfferTo(clientId)) {
       this.offerDialog.setClosed('The other peer failed to connect.');
     }
   }
 
-  _handleReady(peerId) {
-    this.offersDialog.removeOffer(peerId);
-    if (!this.offersDialog.hasContent()) {
+  _handleReady(clientId, peerName) {
+    if (!peerName || !this.nameDialog.isValid(peerName)) {
+      peerName = '';
+    }
+    this.offersDialog.removeOffer(clientId);
+    if (!this._hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
-    this.peersPanel.addPeer(peerId, this._offerConnection.bind(this));
+    this.peersPanel.addPeer(clientId, peerName);
     if (this.connection.isIdle()) {
-      this.client.sendInfoMsg(peerId, {peerStatus: STATUS.available});
+      this.client.sendMessage(
+        clientId, {
+          peerStatus: STATUS.available,
+          peerName: this.peerName
+        }
+      );
     }
   }
 
-  _handleAvailable(peerId) {
-    this.peersPanel.addPeer(peerId, this._offerConnection.bind(this));
+  _handleAvailable(clientId, peerName) {
+    if (!peerName || !this.nameDialog.isValid(peerName)) {
+      peerName = '';
+    }
+    this.peersPanel.addPeer(clientId, peerName);
   }
 
-  _handleUnavailable(peerId) {
-    this.peersPanel.removePeer(peerId);
+  _handleUnavailable(clientId) {
+    this.peersPanel.removePeer(clientId);
   }
 
-  _handleGone(peerId) {
-    if (this.offerDialog.isOfferTo(peerId)) {
+  _handleGone(clientId) {
+    if (this.offerDialog.isOfferTo(clientId)) {
       this.offerDialog.setClosed('The other peer left the channel.');
     }
-    if (this.connection.isConnectedTo(peerId)) {
-      this._closeConnection(peerId);
+    if (this.connection.isConnectedTo(clientId)) {
+      this._closeConnection(clientId);
     }
-    this.peersPanel.removePeer(peerId);
-    this.offersDialog.removeOffer(peerId);
-    if (!this.offersDialog.hasContent()) {
+    this.peersPanel.removePeer(clientId);
+    this.offersDialog.removeOffer(clientId);
+    if (!this._hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
   }
 
-  _handleCandidate(peerId, candidate) {
-    if (this.connection.isConnectedTo(peerId)) {
+  _handleCandidate(clientId, candidate) {
+    if (this.connection.isConnectedTo(clientId)) {
       logger.info('Received candidate');
       const iceHandler = () => {
         this.view.showAlert('ICE failed. Can\'t connect.');
         this._closeConnection();
-        this.client.sendInfoMsg(peerId, {peerAction: MESSAGES.error});
-        this.client.publish({peerStatus: STATUS.available});
+        this.client.sendMessage(clientId, {peerAction: MESSAGES.error});
+        this.client.publish({
+          peerStatus: STATUS.available,
+          peerName: this.peerName
+        });
       };
       this.connection.addCandidate(candidate, iceHandler).then(() => {
       }).catch(error => {
@@ -405,11 +556,11 @@ export default class Peer {
     }
   }
 
-  _handleSdp(peerId, sdp) {
-    if (this.connection.isConnectedTo(peerId)) {
+  _handleSdp(clientId, sdp) {
+    if (this.connection.isConnectedTo(clientId)) {
       logger.debug('Received SDP');
       const sdpHandler = (newJsonSdp) => {
-        this.client.sendInfoMsg(peerId, newJsonSdp);
+        this.client.sendMessage(clientId, newJsonSdp);
         logger.info('Sent SDP');
       };
       this.connection.addSdp(sdp, sdpHandler).then(() => {
