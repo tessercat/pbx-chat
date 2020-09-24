@@ -13,6 +13,10 @@ export default class Connection {
     this.pc = null;
     this.makingOffer = false;
     this.ignoreOffer = false;
+    this.onTrack = () => {};
+    this.onSdp = () => {};
+    this.onCandidate = () => {};
+    this.onIceError = () => {};
   }
 
   isConnectedTo(clientId) {
@@ -33,22 +37,18 @@ export default class Connection {
       iceServers: [{urls: `stun:${stunServer}`}],
     }
     this.pc = new RTCPeerConnection(configuration);
-  }
-
-  open(trackHandler, candidateHandler, sdpHandler, iceHandler) {
     this.pc.ontrack = (event) => {
       if (event.track) {
         logger.info('Added remote', event.track.kind, 'track');
-        trackHandler(event.track);
+        this.onTrack(event.track);
       }
     };
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
-        candidateHandler(event.candidate.toJSON());
+        this.onCandidate(event.candidate.toJSON());
       } else {
         if (this.pc.connectionState === 'failed') {
-          logger.error('ICE failed');
-          iceHandler();
+          this.onIceError();
         }
       }
     };
@@ -62,7 +62,7 @@ export default class Connection {
         }
         await this.pc.setLocalDescription(offer);
         if (this.pc.localDescription) {
-          sdpHandler(this.pc.localDescription.toJSON());
+          this.onSdp(this.pc.localDescription.toJSON());
         }
       } catch (error) {
         logger.error('SDP negotiation error', error);
@@ -70,6 +70,9 @@ export default class Connection {
         this.makingOffer = false;
       }
     };
+  }
+
+  open() {
     logger.info('Connecting');
     for (const track of this.userMedia.getTracks()) {
       this.pc.addTrack(track, this.userMedia);
@@ -139,18 +142,18 @@ export default class Connection {
       let hasVideo = false;
       for (const device of devices) {
         if (device.kind.startsWith('audio')) {
-          logger.info('Found local audio device');
+          logger.info('Found audio device');
           hasAudio = true;
         } else if (device.kind.startsWith('video')) {
-          logger.info('Found local video device');
+          logger.info('Found video device');
           hasVideo = true;
         }
       }
       if (audio && !hasAudio) {
-        throw new Error('No audio devices found.');
+        throw new Error('No audio devices.');
       }
       if (video && !hasVideo) {
-        throw new Error('No video devices found.');
+        throw new Error('No video devices.');
       }
       return navigator.mediaDevices.getUserMedia({audio, video});
     }).then(stream => {
@@ -162,10 +165,9 @@ export default class Connection {
 
   // Inbound signal handlers.
 
-  async addCandidate(jsonCandidate, iceHandler) {
+  async addCandidate(jsonCandidate) {
     if (this.pc.connectionState === 'failed') {
-      logger.error('ICE failed');
-      iceHandler();
+      this.onIceError();
     } else {
       try {
         await this.pc.addIceCandidate(jsonCandidate);

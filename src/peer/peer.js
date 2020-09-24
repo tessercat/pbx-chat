@@ -216,18 +216,19 @@ export default class Peer {
 
   _openConnection(clientId, peerName) {
     if (this.connection.isConnectedTo(clientId)) {
-      const trackHandler = (track) => {
+      this.connection.onTrack = (track) => {
         this.view.addTrack(track);
       };
-      const candidateHandler = (candidate) => {
-        this.client.sendMessage(clientId, candidate);
-        logger.info('Sent candidate');
-      };
-      const offerHandler = (sdp) => {
+      this.connection.onSdp = (sdp) => {
         this.client.sendMessage(clientId, sdp);
         logger.info('Sent SDP');
       };
-      const iceHandler = () => {
+      this.connection.onCandidate = (candidate) => {
+        this.client.sendMessage(clientId, candidate);
+        logger.info('Sent candidate');
+      };
+      this.connection.onIceError = () => {
+        logger.error('ICE failed');
         this.client.sendMessage(clientId, {peerAction: MESSAGES.error});
         this._closeConnection();
         this.view.showAlert('ICE failed. Can\'t connect.');
@@ -243,9 +244,7 @@ export default class Peer {
       this._updateConnectionLabel();
       this.view.setNavStatus(this.connectionLabel);
       this.view.setNavMenu(this._closeConnectionButton(clientId));
-      this.connection.open(
-        trackHandler, candidateHandler, offerHandler, iceHandler
-      );
+      this.connection.open();
     }
   }
 
@@ -348,8 +347,8 @@ export default class Peer {
     const onError = (error) => {
       logger.info('Error accepting offer', clientId, error.message);
       this.client.sendMessage(clientId, {peerAction: MESSAGES.error});
-      this.view.showAlert(error.message);
       this._closeConnection();
+      this.view.showAlert(error.message);
       this.view.showModal(this.offersDialog);
       this.offersDialog.removeOffer(clientId);
     };
@@ -519,8 +518,15 @@ export default class Peer {
   }
 
   _handleError(clientId) {
-    if (this.offerDialog.isOfferTo(clientId)) {
-      this.offerDialog.setClosed('The other peer failed to connect.');
+    if (this.connection.isConnectedTo(clientId)) {
+      this._closeConnection();
+      this.client.publish({
+        peerStatus: STATUS.available,
+        peerName: this.peerName
+      });
+      this.offerDialog.setClosed();
+      this.view.showAlert('The other peer failed to connect.');
+      this.view.showModal(this.offersDialog);
     }
   }
 
@@ -571,18 +577,9 @@ export default class Peer {
   _handleCandidate(clientId, candidate) {
     if (this.connection.isConnectedTo(clientId)) {
       logger.info('Received candidate');
-      const iceHandler = () => {
-        this.view.showAlert('ICE failed. Can\'t connect.');
-        this._closeConnection();
-        this.client.sendMessage(clientId, {peerAction: MESSAGES.error});
-        this.client.publish({
-          peerStatus: STATUS.available,
-          peerName: this.peerName
-        });
-      };
-      this.connection.addCandidate(candidate, iceHandler).then(() => {
+      this.connection.addCandidate(candidate).then(() => {
       }).catch(error => {
-        logger.error('Error addng candidate', error);
+        logger.error('Error adding candidate', error);
       });
     }
   }
