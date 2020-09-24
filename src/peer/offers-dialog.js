@@ -71,7 +71,7 @@ export default class OffersDialog {
     acceptButton.style.float = 'right';
     acceptButton.style.marginLeft = '0.2em';
     acceptButton.addEventListener('click', () => {
-      this.onAccept(clientId);
+      this.onAccept(clientId, this.offers[clientId].peerName);
     });
     section.append(acceptButton);
     const ignoreButton = document.createElement('button');

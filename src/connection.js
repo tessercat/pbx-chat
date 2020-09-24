@@ -11,16 +11,15 @@ export default class Connection {
     this.isPolite = null;
     this.userMedia = null;
     this.pc = null;
-    this.statsInterval = 10000;
     this.makingOffer = false;
     this.ignoreOffer = false;
   }
 
   isConnectedTo(clientId) {
-    if (clientId) {
+    if (clientId && this.clientId) {
       return clientId === this.clientId;
     }
-    return this.clientId !== null;
+    return false;
   }
 
   isIdle() {
