@@ -13,11 +13,11 @@ const CONST = {
 }
 
 class VertoRequest {
-  constructor(method, params, sessid, requestId) {
+  constructor(sessionId, requestId, method, params) {
     this.jsonrpc = '2.0';
-    this.method = method;
-    this.params = {sessid, ...params};
     this.id = requestId;
+    this.method = method;
+    this.params = {sessid: sessionId, ...params};
   }
 }
 
@@ -34,7 +34,9 @@ export default class Client {
   constructor() {
     this.channelId = location.pathname.split('/').pop();
     this.ws = new MyWebSocket();
-    this._setWsListeners();
+    this.ws.onConnect = this._onWsConnect.bind(this);
+    this.ws.onDisconnect = this._onWsDisconnect.bind(this);
+    this.ws.onMessage = this._onWsMessage.bind(this);
     this.pingTimer = null;
     this.lastActive = null;
     this._addActivityListeners();
@@ -66,11 +68,11 @@ export default class Client {
     if (value && value !== this.sessionData[key]) {
       changed = true;
       this.sessionData[key] = value;
-      logger.info('Set session', key);
+      logger.info('Set', key);
     } else if (this.sessionData[key] && !value) {
       changed = true;
       delete this.sessionData[key];
-      logger.info('Deleted session', key);
+      logger.info('Deleted', key);
     }
     if (changed) {
       localStorage.setItem(
@@ -170,13 +172,7 @@ export default class Client {
 
   // Websocket event handlers.
 
-  _setWsListeners() {
-    this.ws.onConnect = this._wsConnectHandler.bind(this);
-    this.ws.onDisconnect = this._wsDisconnectHandler.bind(this);
-    this.ws.onMessage = this._wsMessageHandler.bind(this);
-  }
-
-  _wsConnectHandler() {
+  _onWsConnect() {
     logger.info('Connected');
     this.onConnect();
     this._cleanResponseCallbacks();
@@ -189,7 +185,7 @@ export default class Client {
     this._sendRequest('login');
   }
 
-  _wsDisconnectHandler() {
+  _onWsDisconnect() {
     this.isSubscribed = false;
     clearTimeout(this.pingTimer);
     const isTimeout = this._isTimeout();
@@ -201,18 +197,18 @@ export default class Client {
     logger.info('Disconnected');
   }
 
-  _wsMessageHandler(event) {
+  _onWsMessage(event) {
     const message = this._parse(event.data);
     if (this.responseCallbacks[message.id]) {
       logger.debug('Raw response', message);
-      this._responseHandler(message);
+      this._handleResponse(message);
     } else {
       logger.debug('Raw event', message);
-      this._eventHandler(message);
+      this._handleEvent(message);
     }
   }
 
-  // Connection and verto session maintenance methods.
+  // Connection and session maintenance methods.
 
   _initSessionData() {
     return this.sessionData = JSON.parse(
@@ -232,8 +228,8 @@ export default class Client {
   }
 
   _startSession(onSuccess, onError) {
-    let sessionId = this._getSessionId();
-    let url = `${location.href}/sessions?sessionId=${sessionId}`;
+    const sessionId = this._getSessionId();
+    const url = `${location.href}/sessions?sessionId=${sessionId}`;
     fetch(url).then(response => {
       if (response.ok) {
         return response.json();
@@ -244,8 +240,8 @@ export default class Client {
       onSuccess(sessionId, loginData);
     }).catch(error => {
       if (error.message === '404') {
-        let sessionId = this._getSessionId(true);
-        let url = `${location.href}/sessions?sessionId=${sessionId}`;
+        const sessionId = this._getSessionId(true);
+        const url = `${location.href}/sessions?sessionId=${sessionId}`;
         fetch(url).then(response => {
           if (response.ok) {
             return response.json();
@@ -282,10 +278,10 @@ export default class Client {
   _sendRequest(method, params, onSuccess, onError) {
     this.currentRequestId += 1;
     const request = new VertoRequest(
-      method,
-      params,
       this.sessionId,
-      this.currentRequestId
+      this.currentRequestId,
+      method,
+      params
     );
     this.responseCallbacks[request.id] = new ResponseCallbacks(
       onSuccess, onError
@@ -362,7 +358,7 @@ export default class Client {
 
   // Verto JSON-RPC response and event handlers.
 
-  _responseHandler(message) {
+  _handleResponse(message) {
     if (message.result) {
       const onSuccess = this.responseCallbacks[message.id].onSuccess;
       if (onSuccess) {
@@ -386,7 +382,7 @@ export default class Client {
     delete this.responseCallbacks[message.id];
   }
 
-  _eventHandler(event) {
+  _handleEvent(event) {
     if (event.method === 'verto.clientReady') {
       logger.info('Ready');
       this.onReady();
@@ -419,7 +415,7 @@ export default class Client {
   // Event and message data processing helpers.
 
   /*
-   * These methods eat exceptions.
+   * These methods eat exceptions. That's the point.
    *
    * Parsing takes a stringified object as input and returns the object,
    * or null on error.
