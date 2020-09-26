@@ -8,13 +8,13 @@ export default class PeersPanel {
 
   constructor() {
     this.panel = this._panel();
-    this.panelContent = [this.panel];
+    this.info = this.panel;
     this.statusMsg = this._statusMsg();
     this.setOffline();
     this.panel.append(this.statusMsg);
     this.peers = {};
     this.onOffer = () => {};
-    this.displayName = () => {return 'N/A'};
+    this.getDisplayName = () => {return 'N/A'};
   }
 
   _panel() {
@@ -38,17 +38,16 @@ export default class PeersPanel {
   }
 
   _setPeerName(peer) {
-    peer.label.textContent = this.displayName(
-      peer.clientId, peer.peerName, 480
-    );
     if (peer.peerName) {
+      peer.label.textContent = this.getDisplayName(peer.peerName, 480);
+      peer.label.setAttribute('title', `${peer.peerName} (${peer.peerId})`);
       peer.offerButton.setAttribute(
         'title', `Connect to ${peer.peerName} (${peer.peerId})`
       );
-      peer.label.setAttribute('title', `${peer.peerName} (${peer.peerId})`);
     } else {
-      peer.offerButton.setAttribute('title', `Connect to ${peer.peerId}`);
+      peer.label.textContent = peer.peerId;
       peer.label.removeAttribute('title');
+      peer.offerButton.setAttribute('title', `Connect to ${peer.peerId}`);
     }
   }
 
@@ -59,11 +58,11 @@ export default class PeersPanel {
   }
 
   setOnline() {
-    this.statusMsg.innerHTML = 'Waiting for others to join.';
+    this.statusMsg.innerHTML = 'Online. Waiting for others to join.';
   }
 
   setOffline() {
-    this.statusMsg.innerHTML = 'Offline';
+    this.statusMsg.innerHTML = 'Offline.';
   }
 
   addPeer(clientId, peerName) {
@@ -95,8 +94,8 @@ export default class PeersPanel {
     section.append(offerButton);
     peer.added = new Date();
     peer.clientId = clientId;
+    peer.peerId = clientId.substr(0, 5);
     peer.peerName = peerName;
-    peer.peerId = this.displayName(clientId);
     peer.offerButton = offerButton;
     peer.label = label;
     this.peers[clientId] = peer;

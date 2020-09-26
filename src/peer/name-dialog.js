@@ -2,24 +2,41 @@
  * Copyright (c) 2020 Peter Christensen. All Rights Reserved.
  * CC BY-NC-ND 4.0.
  */
-//import logger from '../logger.js';
-
 export default class NameDialog {
 
   constructor(header) {
-    this.header = header;
+    this.peerId = null;
     this.section = this._section();
     this.footer = this._footer();
-    this.modalContent = [this.header, this.section, this.footer];
+    this.modalContent = [header, this.section, this.footer];
     this.nameField = this.section.querySelector('#name-input');
     this.okButton = this.footer.querySelector('#name-ok');
     this.nameFieldValidator = new RegExp('^[a-zA-Z0-9]+( [a-zA-Z0-9]+)*$');
     this._addListeners();
-    this.peerId = null;
     this.onSubmit = () => {};
     this.onClose = () => {};
   }
 
+  setClientId(clientId) {
+    this.peerId = clientId.substr(0, 5);
+  }
+
+  init(peerName) {
+    this.nameField.value = peerName ? peerName : this.peerId;
+    this.nameField.setCustomValidity('');
+  }
+
+  isValid(peerName) {
+    if (this.nameFieldValidator.test(peerName) && peerName.length <= 32) {
+      return true;
+    }
+    return false;
+  }
+
+  setFocus() {
+    this.nameField.focus();
+    this.nameField.select();
+  }
   _section() {
     const input = document.createElement('input');
     input.setAttribute('type', 'text');
@@ -80,23 +97,5 @@ export default class NameDialog {
     } else {
       this.onSubmit(this.nameField.value);
     }
-  }
-
-  init(peerId, peerName) {
-    this.peerId = peerId;
-    this.nameField.value = peerName ? peerName : peerId;
-    this.nameField.setCustomValidity('');
-  }
-
-  isValid(peerName) {
-    if (this.nameFieldValidator.test(peerName) && peerName.length <= 32) {
-      return true;
-    }
-    return false;
-  }
-
-  setFocus() {
-    this.nameField.focus();
-    this.nameField.select();
   }
 }
