@@ -6,6 +6,7 @@ import Client from '../client.js';
 import Connection from '../connection.js';
 import NavStatus from './nav-status.js';
 import NavMenu from './nav-menu.js';
+import HelpDialog from './help-dialog.js';
 import NameDialog from './name-dialog.js';
 import PeersPanel from './peers-panel.js';
 import OffersDialog from './offers-dialog.js';
@@ -52,19 +53,22 @@ export default class Peer {
     // Nav status
     this.navStatus = new NavStatus();
     this.navStatus.getDisplayName = this._getDisplayName;
-    this.navStatus.onRenameEvent = this._rename.bind(this);
+    this.navStatus.onOpen = this._showNameDialog.bind(this);
 
     // Nav menu
     this.navMenu = new NavMenu();
     this.navMenu.setOffline();
-    this.navMenu.onCloseEvent = this._onCloseEvent.bind(this);
+    this.navMenu.onCloseConnection = this._onCloseConnection.bind(this);
+    this.navMenu.onOpenHelp = this._onOpenHelp.bind(this);
     this.view.setNavMenu(this.navMenu.menu);
+
+    // Help dialog
+    this.helpDialog = new HelpDialog(this.view.modalHeader('Troubleshooting'));
+    this.helpDialog.onClose = this._onCloseHelp.bind(this);
 
     // NameDialog
     this.peerName = null;
-    this.nameDialog = new NameDialog(
-      this.view.modalHeader('Enter your name')
-    )
+    this.nameDialog = new NameDialog(this.view.modalHeader('Enter your name'));
     this.nameDialog.onSubmit = this._onSubmitName.bind(this);
     this.nameDialog.onClose = this._onCancelName.bind(this);
     this.nameDialog.onModalEscape = this._onCancelName.bind(this);
@@ -81,13 +85,11 @@ export default class Peer {
     this.offerDialog.onModalEscape = this._onCancelOffer.bind(this);
 
     // OffersDialog
-    this.offersDialog = new OffersDialog(
-      this.view.modalHeader('Offers'),
-    );
+    this.offersDialog = new OffersDialog(this.view.modalHeader('Offers'));
     this.offersDialog.getDisplayName = this._getDisplayName;
     this.offersDialog.onAccept = this._onAcceptOffer.bind(this)
     this.offersDialog.onIgnore = this._onIgnoreOffer.bind(this);
-    this.offersDialog.hasModalContent = this._hasOffers.bind(this);
+    this.offersDialog.hasModalContent = this.offersDialog.hasOffers;
   }
 
   connect() {
@@ -114,17 +116,7 @@ export default class Peer {
     return 'N/A';
   }
 
-  _onCloseEvent(clientId) {
-    this._closeConnection('Closing connection');
-    this.client.sendMessage(clientId, {peerAction: MESSAGES.close});
-    this.client.publish({
-      peerStatus: STATUS.available,
-      peerName: this.peerName
-    });
-    this.view.showModal(this.offersDialog);
-  }
-
-  _rename() {
+  _showNameDialog() {
     this.nameDialog.init(this.peerName);
     this.view.showModal(this.nameDialog);
   }
@@ -183,8 +175,26 @@ export default class Peer {
     this.view.setNavMenu(this.navMenu.menu);
   }
 
-  _hasOffers() {
-    return Object.keys(this.offersDialog.offers).length > 0;
+  // Nav menu callbacks.
+
+  _onCloseConnection(clientId) {
+    this._closeConnection('Closing connection');
+    this.client.sendMessage(clientId, {peerAction: MESSAGES.close});
+    this.client.publish({
+      peerStatus: STATUS.available,
+      peerName: this.peerName
+    });
+    this.view.showModal(this.offersDialog);
+  }
+
+  // HelpDialog callbacks.
+
+  _onCloseHelp() {
+    this.view.hideModal(this.helpDialog);
+  }
+
+  _onOpenHelp() {
+    this.view.showModal(this.helpDialog);
   }
 
   // NameDialog callbacks.
@@ -258,7 +268,7 @@ export default class Peer {
   _onIgnoreOffer(clientId) {
     this.offersDialog.removeOffer(clientId);
     this.offersDialog.ignoreOffer(clientId);
-    if (!this._hasOffers()) {
+    if (!this.offersDialog.hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
   }
@@ -335,7 +345,7 @@ export default class Peer {
     if (this.peerName) {
       this._subscribe();
     } else {
-      this._rename();
+      this._showNameDialog();
     }
   }
 
@@ -360,7 +370,7 @@ export default class Peer {
       }
     }
     this.offersDialog.clean();
-    if (!this._hasOffers()) {
+    if (!this.offersDialog.hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
   }
@@ -443,7 +453,7 @@ export default class Peer {
       this.view.showModal(this.offersDialog);
     }
     this.offersDialog.removeOffer(clientId);
-    if (!this._hasOffers()) {
+    if (!this.offersDialog.hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
   }
@@ -466,7 +476,7 @@ export default class Peer {
       peerName = '';
     }
     this.offersDialog.removeOffer(clientId);
-    if (!this._hasOffers()) {
+    if (!this.offersDialog.hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
     this.peersPanel.addPeer(clientId, peerName);
@@ -500,7 +510,7 @@ export default class Peer {
     }
     this.peersPanel.removePeer(clientId);
     this.offersDialog.removeOffer(clientId);
-    if (!this._hasOffers()) {
+    if (!this.offersDialog.hasOffers()) {
       this.view.hideModal(this.offersDialog);
     }
   }

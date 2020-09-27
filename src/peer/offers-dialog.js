@@ -51,6 +51,10 @@ export default class OffersDialog {
     }
   }
 
+  hasOffers() {
+    return Object.keys(this.offers).length > 0;
+  }
+
   addOffer(clientId, peerName) {
     if (this.offers[clientId]) {
       this.offers[clientId].added = new Date();

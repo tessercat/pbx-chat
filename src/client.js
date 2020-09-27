@@ -72,7 +72,7 @@ export default class Client {
     } else if (this.sessionData[key] && !value) {
       changed = true;
       delete this.sessionData[key];
-      logger.info('Deleted', key);
+      logger.info('Unset', key);
     }
     if (changed) {
       localStorage.setItem(

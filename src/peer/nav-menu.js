@@ -5,47 +5,44 @@
 export default class NavMenu {
 
   constructor() {
-    this.offlineLabel = this._offlineLabel();
-    this.onlineLabel = this._onlineLabel();
-    this.closeButton = this._closeButton();
+    this.openHelpButton = this._openHelpButton();
+    this.closeConnectionButton = this._closeConnectionButton();
     this.menu = null;
-    this.onCloseEvent = () => {};
+    this.onOpenHelp = () => {};
+    this.onCloseConnection = () => {};
   }
 
   setOffline() {
-    this.menu = this.offlineLabel;
+    this.menu = this.openHelpButton;
   }
 
   setOnline() {
-    this.menu = this.onlineLabel;
+    this.menu = this.openHelpButton;
   }
 
   setConnected(clientId) {
-    this.closeButton.clientId = clientId;
-    this.menu = this.closeButton;
+    this.closeConnectionButton.clientId = clientId;
+    this.menu = this.closeConnectionButton;
   }
 
-  _offlineLabel() {
-    const label = document.createElement('label');
-    label.textContent = 'Offline';
-    label.classList.add('pseudo', 'button');
-    return label;
+  _openHelpButton() {
+    const button = document.createElement('button');
+    button.textContent = 'Help';
+    button.classList.add('pseudo');
+    button.setAttribute('title', 'Show help box');
+    button.addEventListener('click', () => {
+      this.onOpenHelp();
+    });
+    return button;
   }
 
-  _onlineLabel() {
-    const label = document.createElement('label');
-    label.textContent = 'Online';
-    label.classList.add('pseudo', 'button');
-    return label;
-  }
-
-  _closeButton() {
+  _closeConnectionButton() {
     const button = document.createElement('button');
     button.textContent = 'Close';
     button.classList.add('pseudo');
     button.setAttribute('title', 'Close the connection');
     button.addEventListener('click', () => {
-      this.onCloseEvent(this.closeButton.clientId);
+      this.onCloseConnection(this.closeConnectionButton.clientId);
     });
     return button;
   }

@@ -8,7 +8,7 @@ export default class NavStatus {
     this.nameButton = this._nameButton();
     this.peerLabel = this._peerLabel();
     this.menu = null;
-    this.onRenameEvent = () => {};
+    this.onOpen = () => {};
     this.getDisplayName = () => {'N/A'};
   }
 
@@ -40,7 +40,7 @@ export default class NavStatus {
       this._initNameButton();
     });
     button.addEventListener('click', () => {
-      this.onRenameEvent();
+      this.onOpen();
     });
     return button;
   }
