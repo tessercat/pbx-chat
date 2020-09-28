@@ -65,6 +65,7 @@ export default class Peer {
     // Help dialog
     this.helpDialog = new HelpDialog(this.view.modalHeader('Troubleshooting'));
     this.helpDialog.onClose = this._onCloseHelp.bind(this);
+    this.helpDialog.onModalEscape = this._onCloseHelp.bind(this);
 
     // NameDialog
     this.peerName = null;

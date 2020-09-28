@@ -3,17 +3,17 @@
  * CC BY-NC-ND 4.0.
  */
 const HELP_TEXT = [
-  'Your device must have both a camera and a microphone '
-  + 'installed and enabled. '
+  'Your phone, tablet or computer '
+  + 'must have a camera and microphone installed and enabled. '
   + 'Make sure the browser has permission to use them.',
   'Check volume levels.',
   'Poor wireless is often the cause of poor quality calls.',
   'Connections fail when firewalls get in the way. '
-  + 'Use a VPN when connecting from restrictive networks.',
+  + 'Use a VPN when connecting to or from restrictive networks.',
   'Otherwise, the service should work between '
   + 'Firefox and Chromium-based browsers '
-  + 'on Android, Windows and Linux. '
-  + 'It hasn\'t been tested on appleOS.'
+  + 'on Android, Windows and Linux, '
+  + 'but it hasn\'t been tested on appleOS.'
 ]
 
 export default class NameDialog {
