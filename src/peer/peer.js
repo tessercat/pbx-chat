@@ -34,7 +34,6 @@ export default class Peer {
 
     // Client
     this.client = new Client();
-    this.client.onConnect = this._onConnect.bind(this);
     this.client.onDisconnect = this._onDisconnect.bind(this);
     this.client.onLogin = this._onLogin.bind(this);
     this.client.onLoginError = this._onLoginError.bind(this);
@@ -123,16 +122,21 @@ export default class Peer {
   }
 
   _subscribe() {
-    const onSuccess = () => {
+    const onPubSuccess = () => {
+      this.navMenu.setOnline();
+      this.view.setNavMenu(this.navMenu.menu);
+      this.peersPanel.setOnline();
+    };
+    const onSubSuccess = () => {
       this.client.publish({
         peerStatus: STATUS.ready,
         peerName: this.peerName
-      });
+      }, onPubSuccess);
     };
-    const onError = () => {
+    const onSubError = () => {
       this.view.showAlert('Subscription error');
     }
-    this.client.subscribe(onSuccess, onError);
+    this.client.subscribe(onSubSuccess, onSubError);
   }
 
   _openConnection(clientId, peerName) {
@@ -300,12 +304,6 @@ export default class Peer {
   }
 
   // Client callbacks.
-
-  _onConnect() {
-    this.navMenu.setOnline();
-    this.view.setNavMenu(this.navMenu.menu);
-    this.peersPanel.setOnline();
-  }
 
   _onDisconnect(isTimeout) {
     if (this.client.isConnected()) {
