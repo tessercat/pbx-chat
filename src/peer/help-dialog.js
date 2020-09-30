@@ -7,7 +7,9 @@ const HELP_TEXT = [
   + 'must have a camera and microphone installed and enabled. '
   + 'Make sure the browser has permission to use them.',
   'Check volume levels.',
-  'Poor wireless is often the cause of poor quality calls.',
+  'Poor wireless is often the cause of poor quality calls. '
+  + 'Connect directly to the local network by wire, if possible, '
+  + 'and avoid using wireless headphones and mics.',
   'Connections fail when firewalls get in the way. '
   + 'Use a VPN when connecting to or from restrictive networks.',
   'Otherwise, the service should work between '
