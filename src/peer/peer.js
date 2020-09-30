@@ -127,14 +127,19 @@ export default class Peer {
       this.view.setNavMenu(this.navMenu.menu);
       this.peersPanel.setOnline();
     };
+    const onPubError = () => {
+      this.view.showAlert('Channel access error');
+      this.disconnect();
+    }
     const onSubSuccess = () => {
       this.client.publish({
         peerStatus: STATUS.ready,
         peerName: this.peerName
-      }, onPubSuccess);
+      }, onPubSuccess, onPubError);
     };
     const onSubError = () => {
       this.view.showAlert('Subscription error');
+      this.disconnect();
     }
     this.client.subscribe(onSubSuccess, onSubError);
   }
