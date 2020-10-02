@@ -10,7 +10,7 @@ export default class PeersPanel {
     this.panel = this._panel();
     this.info = this.panel;
     this.statusMsg = this._statusMsg();
-    this.setOffline();
+    this.setOfflineTrying();
     this.panel.append(this.statusMsg);
     this.peers = {};
     this.onOffer = () => {};
@@ -62,7 +62,11 @@ export default class PeersPanel {
   }
 
   setOffline() {
-    this.statusMsg.innerHTML = 'Offline.';
+    this.statusMsg.innerHTML = 'Offline. Reload the page to join.';
+  }
+
+  setOfflineTrying() {
+    this.statusMsg.innerHTML = 'Joining...';
   }
 
   addPeer(clientId, peerName) {

@@ -93,11 +93,20 @@ export default class Peer {
   }
 
   connect() {
-    this.client.connect();
+    if (!this.client.isConnected()) {
+      this.peersPanel.setOfflineTrying();
+      this.client.connect();
+    }
   }
 
   disconnect() {
-    this.client.disconnect();
+    if (this.client.isConnected()) {
+      this.client.publish({peerStatus: STATUS.gone});
+      this.client.disconnect();
+    } else {
+      this.client.disconnect();
+      this._disconnect();
+    }
   }
 
   // Callbacks and helpers.
@@ -310,26 +319,26 @@ export default class Peer {
 
   // Client callbacks.
 
-  _onDisconnect(isTimeout) {
-    if (this.client.isConnected()) {
-      this.client.publish({peerStatus: STATUS.gone});
+  _disconnect(isTimeout) {
+    this.navMenu.setOffline();
+    this.view.setNavMenu(this.navMenu.menu);
+    this.peersPanel.reset();
+    if (this.client.isTrying()) {
+      this.peersPanel.setOfflineTrying();
     } else {
-      this.navMenu.setOffline();
-      this.view.setNavMenu(this.navMenu.menu);
       this.peersPanel.setOffline();
-      this.peersPanel.reset();
-      this.offersDialog.reset();
-      this.view.hideModal(this.offersDialog);
-      if (this.offerDialog.isOffering()) {
-        this.offerDialog.setClosed('You left the channel.');
-      } else if (isTimeout) {
-        this.view.showAlert(
-          'Offline. '
-          + 'The connection timed out. '
-          + 'Reload the page to re-join the channel.'
-        );
-      }
     }
+    this.offersDialog.reset();
+    this.view.hideModal(this.offersDialog);
+    if (this.offerDialog.isOffering()) {
+      this.offerDialog.setClosed('You left the channel.');
+    } else if (isTimeout) {
+      this.view.showAlert('Offline. The connection timed out.');
+    }
+  }
+
+  _onDisconnect(isTimeout) {
+    this._disconnect(isTimeout);
   }
 
   _onLogin() {

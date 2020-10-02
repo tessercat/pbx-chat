@@ -86,6 +86,10 @@ export default class Client {
     return this.ws.isConnected();
   }
 
+  isTrying() {
+    return !this.ws.isHalted;
+  }
+
   connect() {
     if (!this.isConnected()) {
       const onSuccess = (sessionId, loginData) => {
@@ -102,7 +106,6 @@ export default class Client {
   }
 
   disconnect() {
-    this.onDisconnect();
     this.ws.disconnect();
   }
 
