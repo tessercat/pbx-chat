@@ -15,13 +15,13 @@
   "bugs": {
     "url": "https://github.com/tessercat/pbx-client/issues"
   },
-  "homepage": "https://github.com/tessercat/pbx-client#readme",
+  "homepage": "https://github.com/tessercat/pbx-client",
   "devDependencies": {
     "clean-webpack-plugin": "^3.0.0",
     "compression-webpack-plugin": "^4.0.1",
-    "copy-webpack-plugin": "^6.1.0",
-    "eslint": "^7.8.1",
-    "webpack": "^4.44.1",
+    "copy-webpack-plugin": "^6.2.0",
+    "eslint": "^7.10.0",
+    "webpack": "^4.44.2",
     "webpack-cli": "^3.3.12",
     "webrtc-adapter": "^7.7.0"
   },
