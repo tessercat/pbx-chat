@@ -1,3 +1,4 @@
+# Run this as root from /opt/pbx.
 APP=peers
 FROM=/opt/pbx/client/dist
 NGINX_STATIC=/opt/pbx/static/$APP/js
@@ -6,7 +7,7 @@ PROJECT_STATIC=/opt/pbx/web/static/$APP/js
 rm $NGINX_STATIC/peer-*
 rm $NGINX_STATIC/adapter-*
 cp $FROM/* $NGINX_STATIC
-chown nginx:nginx $NGINX_STATIC/*
+chown www-data:www-data $NGINX_STATIC/*
 
 rm $APP_STATIC/peer-*
 rm $APP_STATIC/adapter-*
