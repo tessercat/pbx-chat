@@ -14,48 +14,11 @@ export default class PeersPanel {
     this.panel.append(this.statusMsg);
     this.peers = {};
     this.onOffer = () => {};
+    this.getFullName = () => {return 'N/A'};
     this.getDisplayName = () => {return 'N/A'};
   }
 
-  _panel() {
-    const div = document.createElement('div');
-    div.style.marginLeft = 'auto';
-    div.style.marginRight = 'auto';
-    div.style.maxWidth = '600px'
-    div.style.padding = '1em';
-    const mm = matchMedia('(min-width: 480px)');
-    mm.addListener((mm) => {
-      if (mm.matches) {
-        div.style.maxWidth = '480px'
-      } else {
-        div.style.maxWidth = '100%';
-      }
-      for (const clientId in this.peers) {
-        this._setPeerName(this.peers[clientId]);
-      }
-    });
-    return div;
-  }
-
-  _setPeerName(peer) {
-    if (peer.peerName) {
-      peer.label.textContent = this.getDisplayName(peer.peerName, 480);
-      peer.label.setAttribute('title', `${peer.peerName} (${peer.peerId})`);
-      peer.offerButton.setAttribute(
-        'title', `Connect to ${peer.peerName} (${peer.peerId})`
-      );
-    } else {
-      peer.label.textContent = peer.peerId;
-      peer.label.removeAttribute('title');
-      peer.offerButton.setAttribute('title', `Connect to ${peer.peerId}`);
-    }
-  }
-
-  _statusMsg() {
-    const p = document.createElement('p');
-    p.style.textAlign = 'center';
-    return p;
-  }
+  // Object state
 
   setOnline() {
     this.statusMsg.innerHTML = 'Online. Waiting for others to join.';
@@ -93,12 +56,11 @@ export default class PeersPanel {
     offerButton.textContent = 'Connect';
     offerButton.style.float = 'right';
     offerButton.addEventListener('click', () => {
-      this.onOffer(clientId);
+      this.onOffer(peer.clientId, peer.peerName);
     });
     section.append(offerButton);
     peer.added = new Date();
     peer.clientId = clientId;
-    peer.peerId = clientId.substr(0, 5);
     peer.peerName = peerName;
     peer.offerButton = offerButton;
     peer.label = label;
@@ -141,5 +103,46 @@ export default class PeersPanel {
       this.removePeer(clientId);
     }
     return expired;
+  }
+
+  // Protected
+
+  _panel() {
+    const div = document.createElement('div');
+    div.style.marginLeft = 'auto';
+    div.style.marginRight = 'auto';
+    div.style.maxWidth = '600px';
+    div.style.padding = '1em';
+    const mm = matchMedia('(min-width: 480px)');
+    mm.addListener((mm) => {
+      if (mm.matches) {
+        div.style.maxWidth = '480px';
+      } else {
+        div.style.maxWidth = '100%';
+      }
+      for (const clientId in this.peers) {
+        this._setPeerName(this.peers[clientId]);
+      }
+    });
+    return div;
+  }
+
+  _setPeerName(peer) {
+    const fullName = this.getFullName(peer.clientId, peer.peerName);
+    peer.offerButton.setAttribute('title', `Connect to ${fullName}`);
+    peer.label.textContent = this.getDisplayName(
+      peer.clientId, peer.peerName, 480
+    );
+    if (peer.peerName) {
+      peer.label.setAttribute('title', fullName);
+    } else {
+      peer.label.removeAttribute('title');
+    }
+  }
+
+  _statusMsg() {
+    const p = document.createElement('p');
+    p.style.textAlign = 'center';
+    return p;
   }
 }

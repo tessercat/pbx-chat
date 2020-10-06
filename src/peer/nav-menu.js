@@ -12,6 +12,8 @@ export default class NavMenu {
     this.onCloseConnection = () => {};
   }
 
+  // Object state
+
   setOffline() {
     this.menu = this.openHelpButton;
   }
@@ -25,11 +27,13 @@ export default class NavMenu {
     this.menu = this.closeConnectionButton;
   }
 
+  // Protected
+
   _openHelpButton() {
     const button = document.createElement('button');
     button.textContent = 'Help';
     button.classList.add('pseudo');
-    button.setAttribute('title', 'Show help box');
+    button.setAttribute('title', 'Show troubleshooting help');
     button.addEventListener('click', () => {
       this.onOpenHelp();
     });

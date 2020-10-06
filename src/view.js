@@ -264,8 +264,8 @@ export default class View {
         this.modal = modal;
         this._setModalContent(modal);
         this.modalControl.checked = true;
-        if (this.modal.setFocus) {
-          this.modal.setFocus();
+        if (this.modal.onModalVisible) {
+          this.modal.onModalVisible();
         }
       }
     }

@@ -9,34 +9,44 @@ export default class NavStatus {
     this.peerLabel = this._peerLabel();
     this.menu = null;
     this.onOpen = () => {};
-    this.getDisplayName = () => {'N/A'};
+    this.getFullName = () => {return 'N/A'};
+    this.getDisplayName = () => {return 'N/A'};
   }
 
-  setClientId(clientId) {
-    this.nameButton.peerId = clientId.substr(0, 5);
-    this._initNameButton();
+  // Object state
+
+  setIdle() {
+    this.menu = this.nameButton;
+    this.peerLabel.clientId = null;
   }
 
-  setPeerName(peerName) {
+  setName(clientId, peerName) {
+    this.nameButton.clientId = clientId;
     this.nameButton.peerName = peerName;
     this._initNameButton();
   }
 
-  setIdle() {
-    this.menu = this.nameButton;
-  }
-
   setConnected(clientId, peerName) {
-    this.peerLabel.peerId = clientId.substr(0, 5);
+    this.peerLabel.clientId = clientId;
     this.peerLabel.peerName = peerName;
     this._initPeerLabel();
     this.menu = this.peerLabel;
   }
 
+  isOffering() {
+    return this.clientId !== null;
+  }
+
+  isOfferTo(clientId) {
+    return clientId !== null && clientId === this.clientId;
+  }
+
+  // Protected
+
   _nameButton() {
     const button = document.createElement('button');
     button.classList.add('pseudo');
-    window.matchMedia(`(min-width: 480px)`).addListener(() => {
+    window.matchMedia('(min-width: 480px)').addListener(() => {
       this._initNameButton();
     });
     button.addEventListener('click', () => {
@@ -46,39 +56,35 @@ export default class NavStatus {
   }
 
   _initNameButton() {
+    this.nameButton.textContent = this.getDisplayName(
+      this.nameButton.clientId, this.nameButton.peerName, 480
+    );
     if (this.nameButton.peerName) {
-      this.nameButton.textContent = this.getDisplayName(
-        this.nameButton.peerName, 480
-      );
-      this.nameButton.setAttribute(
-        'title', `${this.nameButton.peerName} (${this.nameButton.peerId})`
-      );
+      this.nameButton.setAttribute('title', this.getFullName(
+        this.nameButton.clientId, this.nameButton.peerName
+      ));
     } else {
-      this.nameButton.textContent = this.nameButton.peerId;
-      this.nameButton.setAttribute('title', 'Click to change your name');
+      this.nameButton.setAttribute('title', 'Change your name');
     }
   }
 
   _peerLabel() {
     const label = document.createElement('label');
     label.classList.add('pseudo', 'button');
-    window.matchMedia(`(min-width: 480px)`).addListener(() => {
-      this._initPeerLabel();
+    window.matchMedia('(min-width: 480px)').addListener(() => {
+      if (this.peerLabel.clientId) {
+        this._initPeerLabel();
+      }
     });
     return label;
   }
 
   _initPeerLabel() {
-    if (this.peerLabel.peerName) {
-      this.peerLabel.textContent = this.getDisplayName(
-        this.peerLabel.peerName, 480
-      );
-      this.peerLabel.setAttribute(
-        'title', `${this.peerLabel.peerName} (${this.peerLabel.peerId})`
-      );
-    } else {
-      this.peerLabel.textContent = this.peerLabel.peerId;
-      this.peerLabel.removeAttribute('title');
-    }
+    this.peerLabel.textContent = this.getDisplayName(
+      this.peerLabel.clientId, this.peerLabel.peerName, 480
+    );
+    this.peerLabel.setAttribute('title', this.getFullName(
+      this.peerLabel.clientId, this.peerLabel.peerName
+    ));
   }
 }

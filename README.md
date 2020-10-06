@@ -1,4 +1,4 @@
-This node project
+This node package
 is a FreeSWITCH verto endpoint
 WebSocket client
 to support the features of the project

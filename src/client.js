@@ -33,18 +33,25 @@ export default class Client {
 
   constructor() {
     this.channelId = location.pathname.split('/').pop();
+
+    // WebSocket
     this.ws = new MyWebSocket();
     this.ws.onConnect = this._onWsConnect.bind(this);
     this.ws.onDisconnect = this._onWsDisconnect.bind(this);
     this.ws.onMessage = this._onWsMessage.bind(this);
+
+    // Ping/activity
     this.pingTimer = null;
     this.lastActive = null;
     this._addActivityListeners();
-    this.currentRequestId = 0;
+
+    // Channel/session
+    this.channelData = this._initChannelData();
     this.authing = false;
     this.responseCallbacks = {};
-    this.sessionData = this._initSessionData();
     this.isSubscribed = false;
+
+    // Events
     this.onConnect = () => {};
     this.onDisconnect = () => {};
     this.onLogin = () => {};
@@ -57,30 +64,32 @@ export default class Client {
     this.onMessage = () => {};
   }
 
-  // Channel client interface.
+  // Channel vars
 
-  getSessionData(key) {
-    return this.sessionData[key] || null;
+  getChannelVar(key) {
+    return this.channelData[key] || null;
   }
 
-  setSessionData(key, value) {
+  setChannelVar(key, value) {
     let changed = false;
-    if (value && value !== this.sessionData[key]) {
+    if (value && value !== this.channelData[key]) {
       changed = true;
-      this.sessionData[key] = value;
+      this.channelData[key] = value;
       logger.info('Set', key);
-    } else if (this.sessionData[key] && !value) {
+    } else if (this.channelData[key] && !value) {
       changed = true;
-      delete this.sessionData[key];
+      delete this.channelData[key];
       logger.info('Unset', key);
     }
     if (changed) {
       localStorage.setItem(
-        this.channelId, JSON.stringify(this.sessionData)
+        this.channelId, JSON.stringify(this.channelData)
       );
     }
     return changed;
   }
+
+  // Channel state
 
   isConnected() {
     return this.ws.isConnected();
@@ -109,6 +118,8 @@ export default class Client {
     this.ws.disconnect();
   }
 
+  // Send interface
+
   subscribe(onSuccess, onError) {
     const onRequestSuccess = () => {
       this.isSubscribed = true;
@@ -130,20 +141,20 @@ export default class Client {
   }
 
   publish(eventData, onSuccess, onError) {
-    logger.client('Broadcast', eventData);
-    const onRequestSuccess = (message) => {
-      if ('code' in message.result) {
-        if (onError) {
-          onError(message);
-        }
-      } else {
-        if (onSuccess) {
-          onSuccess(message);
-        }
-      }
-    }
+    logger.client('Publishing event', eventData);
     const encoded = this._encode(eventData);
     if (encoded) {
+      const onRequestSuccess = (message) => {
+        if ('code' in message.result) {
+          if (onError) {
+            onError(message);
+          }
+        } else {
+          if (onSuccess) {
+            onSuccess(message);
+          }
+        }
+      }
       this._sendRequest('verto.broadcast', {
         localBroadcast: true,
         eventChannel: this.channelId,
@@ -157,7 +168,7 @@ export default class Client {
   }
 
   sendMessage(clientId, msgData, onSuccess, onError) {
-    logger.client('Send', clientId, msgData);
+    logger.client('Sending message', clientId, msgData);
     const encoded = this._encode(msgData);
     if (encoded) {
       this._sendRequest('verto.info', {
@@ -173,7 +184,7 @@ export default class Client {
     }
   }
 
-  // Websocket event handlers.
+  // Websocket event handlers
 
   _onWsConnect() {
     logger.info('Connected');
@@ -193,39 +204,46 @@ export default class Client {
     clearTimeout(this.pingTimer);
     const isTimeout = this._isTimeout();
     this.lastActive = null;
-    this.onDisconnect(isTimeout);
     if (isTimeout) {
       this.disconnect();
     }
+    this._cleanResponseCallbacks();
+    this.onDisconnect(isTimeout);
     logger.info('Disconnected');
   }
 
   _onWsMessage(event) {
     const message = this._parse(event.data);
     if (this.responseCallbacks[message.id]) {
-      logger.debug('Raw response', message);
+      logger.debug('Received response', message);
       this._handleResponse(message);
     } else {
-      logger.debug('Raw event', message);
+      logger.debug('Received event', message);
       this._handleEvent(message);
     }
   }
 
-  // Connection and session maintenance methods.
+  // Constructor helper
 
-  _initSessionData() {
-    return this.sessionData = JSON.parse(
+  _initChannelData() {
+    return this.channelData = JSON.parse(
       localStorage.getItem(this.channelId)
     ) || {};
   }
 
+  // Session helpers
+
+  _getUuid() {
+    const url = URL.createObjectURL(new Blob());
+    URL.revokeObjectURL(url);
+    return url.split('/').pop();
+  }
+
   _getSessionId(replace) {
-    let sessionId = this.getSessionData('sessionId');
+    let sessionId = this.getChannelVar('sessionId');
     if (replace || !sessionId) {
-      const url = URL.createObjectURL(new Blob());
-      URL.revokeObjectURL(url);
-      sessionId = url.split('/').pop();
-      this.setSessionData('sessionId', sessionId);
+      sessionId = this._getUuid();
+      this.setChannelVar('sessionId', sessionId);
     }
     return sessionId;
   }
@@ -279,17 +297,16 @@ export default class Client {
   }
 
   _sendRequest(method, params, onSuccess, onError) {
-    this.currentRequestId += 1;
     const request = new VertoRequest(
       this.sessionId,
-      this.currentRequestId,
+      this._getUuid(),
       method,
       params
     );
     this.responseCallbacks[request.id] = new ResponseCallbacks(
       onSuccess, onError
     );
-    logger.debug('Request', method, params);
+    logger.debug('Sending request', request);
     this.ws.send(request);
   }
 
@@ -311,6 +328,8 @@ export default class Client {
     }, onSuccess, onError);
   }
 
+  // Ping activity helpers
+
   _isTimeout() {
     if (this.lastActive) {
       const timeout = new Date(this.lastActive.getTime() + 60000);
@@ -319,6 +338,14 @@ export default class Client {
       }
     }
     return false;
+  }
+
+  _addActivityListeners() {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && this.isConnected()) {
+        this._ping();
+      }
+    });
   }
 
   _pingInterval() {
@@ -351,15 +378,7 @@ export default class Client {
     }
   }
 
-  _addActivityListeners() {
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && this.isConnected()) {
-        this._ping();
-      }
-    });
-  }
-
-  // Verto JSON-RPC response and event handlers.
+  // WebSocket message handlers
 
   _handleResponse(message) {
     if (message.result) {
@@ -379,7 +398,7 @@ export default class Client {
           }
         }
       } else {
-        logger.error('Bad response', message);
+        logger.error('Received bad response', message);
       }
     }
     delete this.responseCallbacks[message.id];
@@ -388,37 +407,61 @@ export default class Client {
   _handleEvent(event) {
     if (event.method === 'verto.clientReady') {
       logger.info('Ready');
-      this.onReady();
+      this.onReady(event.params);
     } else if (event.method === 'verto.info') {
-      const msg = event.params.msg;
-      if (msg) {
-        const decoded = this._decode(msg.body);
-        logger.client('Info', msg.from, decoded);
-        this.onMessage(msg.from, decoded);
+      if (
+          event.params
+          && event.params.msg
+          && event.params.msg.to
+          && event.params.msg.from
+          && event.params.msg.body) {
+        const msg = event.params.msg;
+        const clientId = msg.to.split('@').shift();
+        const message = this._decode(msg.body);
+        if (clientId && clientId === this.clientId) {
+          logger.client('Received message', event, message);
+          this.onMessage(msg.from, message);
+        } else {
+          logger.error('Received other message', event, message);
+        }
       } else {
-        logger.error('Bad info', event);
+        logger.error('Received empty message', event);
       }
     } else if (event.method === 'verto.event') {
-      if (event.params.sessid === this.sessionId) {
-        return;
+      if (
+          event.params
+          && event.params.sessid
+          && event.params.sessid === this.sessionId) {
+        logger.client('Received own event', event);
+      } else if (
+          event.params
+          && event.params.userid
+          && event.params.eventChannel
+          && event.params.eventData) {
+        if (event.params.eventChannel === this.channelId) {
+          const clientId = event.params.userid.split('@').shift();
+          const eventData = this._decode(event.params.eventData);
+          logger.client('Received channel event', clientId, eventData);
+          this.onEvent(clientId, eventData);
+        } else {
+          logger.error('Received other channel event', event);
+        }
+      } else {
+        logger.error('Received bad channel event', event);
       }
-      const clientId = event.params.userid.split('@').shift();
-      const decoded = this._decode(event.params.eventData);
-      logger.client('Event', clientId, decoded);
-      this.onEvent(clientId, decoded);
     } else if (event.method === 'verto.punt') {
-      logger.info('Punt');
+      logger.info('Received punt');
       this.disconnect();
-      this.onPunt(event);
+      this.onPunt();
     } else {
-      logger.error('Bad event', event);
+      logger.error('Received bad event', event);
     }
   }
 
   // Event and message data processing helpers.
 
   /*
-   * These methods eat exceptions. That's the point.
+   * These methods eat exceptions.
    *
    * Parsing takes a stringified object as input and returns the object,
    * or null on error.

@@ -16,44 +16,11 @@ export default class OffersDialog {
     this._setMatchMedia();
     this.onAccept = () => {};
     this.onIgnore = () => {};
+    this.getFullName = () => {return 'N/A'};
     this.getDisplayName = () => {return 'N/A'};
   }
 
-  _setMatchMedia() {
-    matchMedia('(min-width: 480px)').addListener(() => {
-      for (const clientId in this.offers) {
-        this._setPeerName(this.offers[clientId]);
-      }
-    });
-  }
-
-  _setPeerName(offer) {
-    if (offer.peerName) {
-      offer.label.textContent = this.getDisplayName(offer.peerName, 480);
-      offer.label.setAttribute(
-        'title', `${offer.peerName} (${offer.peerId})`
-      );
-      offer.ignoreButton.setAttribute(
-        'title', `Ignore offer from ${offer.peerName} (${offer.peerId})`
-      );
-      offer.acceptButton.setAttribute(
-        'title', `Accept offer from ${offer.peerName} (${offer.peerId})`
-      );
-    } else {
-      offer.label.textContent = this.getDisplayName(offer.peerId);
-      offer.label.removeAttribute('title');
-      offer.ignoreButton.setAttribute(
-        'title', `Ignore offer from ${offer.peerId}`
-      );
-      offer.acceptButton.setAttribute(
-        'title', `Accept offer from ${offer.peerId}`
-      );
-    }
-  }
-
-  hasOffers() {
-    return Object.keys(this.offers).length > 0;
-  }
+  // Object state
 
   addOffer(clientId, peerName) {
     if (this.offers[clientId]) {
@@ -83,7 +50,7 @@ export default class OffersDialog {
     acceptButton.style.float = 'right';
     acceptButton.style.marginLeft = '0.2em';
     acceptButton.addEventListener('click', () => {
-      this.onAccept(clientId, this.offers[clientId].peerName);
+      this.onAccept(offer.clientId, offer.peerName);
     });
     section.append(acceptButton);
     const ignoreButton = document.createElement('button');
@@ -92,12 +59,11 @@ export default class OffersDialog {
     ignoreButton.style.float = 'right';
     ignoreButton.classList.add('warning');
     ignoreButton.addEventListener('click', () => {
-      this.onIgnore(clientId);
+      this.onIgnore(offer.clientId);
     });
     section.append(ignoreButton);
     offer.added = new Date();
     offer.clientId = clientId;
-    offer.peerId = clientId.substr(0, 5);
     offer.peerName = peerName;
     offer.ignoreButton = ignoreButton;
     offer.acceptButton = acceptButton;
@@ -106,6 +72,10 @@ export default class OffersDialog {
     this._setPeerName(offer);
     this.panel.append(offer);
     logger.info('Received offer', clientId);
+  }
+
+  hasOffers() {
+    return Object.keys(this.offers).length > 0;
   }
 
   ignoreOffer(clientId) {
@@ -154,6 +124,30 @@ export default class OffersDialog {
     for (const clientId of expired) {
       logger.info('Offer expired', clientId);
       this.removeOffer(clientId);
+    }
+  }
+
+  // Protected
+
+  _setMatchMedia() {
+    matchMedia('(min-width: 480px)').addListener(() => {
+      for (const clientId in this.offers) {
+        this._setPeerName(this.offers[clientId]);
+      }
+    });
+  }
+
+  _setPeerName(offer) {
+    const fullName = this.getFullName(offer.clientId, offer.peerName);
+    offer.ignoreButton.setAttribute('title', `Ignore offer from ${fullName}`);
+    offer.acceptButton.setAttribute('title', `Accept offer from ${fullName}`);
+    offer.label.textContent = this.getDisplayName(
+      offer.clientId, offer.peerName, 480
+    );
+    if (offer.peerName) {
+      offer.label.setAttribute('title', fullName);
+    } else {
+      offer.label.removeAttribute('title');
     }
   }
 }

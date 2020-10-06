@@ -30,7 +30,7 @@ export default class Connection {
     return this.clientId === null;
   }
 
-  init(clientId, isPolite, stunServer) {
+  setConnected(clientId, isPolite, stunServer) {
     this.clientId = clientId;
     this.isPolite = isPolite;
     const configuration = {

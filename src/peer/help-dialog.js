@@ -3,15 +3,20 @@
  * CC BY-NC-ND 4.0.
  */
 const HELP_TEXT = [
-  'Your phone, tablet or computer '
-  + 'must have a camera and microphone installed and enabled. '
+  'You\'ll need a camera and a microphone. '
   + 'Make sure the browser has permission to use them.',
+
   'Check volume levels.',
-  'Poor wireless is often the cause of poor quality calls. '
-  + 'Connect directly to the local network by wire, if possible, '
+
+  'Poor wireless is often the cause of poor quality calls.',
+
+  'Connect directly to the local network by wire, if possible, '
   + 'and avoid using wireless headphones and mics.',
-  'Connections fail when firewalls get in the way. '
-  + 'Use a VPN when connecting to or from restrictive networks.',
+
+  'ICE fails when firewalls get in the way. '
+  + 'Use a VPN when connecting to or from '
+  + 'peers in restrictive networks.',
+
   'Otherwise, the service should work between '
   + 'Firefox and Chromium-based browsers '
   + 'on Android, Windows and Linux, '
@@ -39,7 +44,7 @@ export default class NameDialog {
 
   _footer() {
     const closeButton = document.createElement('button');
-    closeButton.setAttribute('title', 'Close this box');
+    closeButton.setAttribute('title', 'Dismiss help info');
     closeButton.textContent = 'Close';
     closeButton.style.float = 'right';
     closeButton.addEventListener('click', () => {
