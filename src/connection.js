@@ -9,7 +9,6 @@ export default class Connection {
   constructor() {
     this.clientId = null;
     this.isPolite = null;
-    this.userMedia = null;
     this.pc = null;
     this.makingOffer = false;
     this.ignoreOffer = false;
@@ -30,7 +29,7 @@ export default class Connection {
     return this.clientId === null;
   }
 
-  setConnected(clientId, isPolite, stunServer) {
+  open(clientId, isPolite, stunServer) {
     this.clientId = clientId;
     this.isPolite = isPolite;
     const configuration = {
@@ -39,7 +38,7 @@ export default class Connection {
     this.pc = new RTCPeerConnection(configuration);
     this.pc.ontrack = (event) => {
       if (event.track) {
-        logger.info('Added remote', event.track.kind, 'track');
+        logger.info('Receiving remote', event.track.kind);
         this.onTrack(event.track);
       }
     };
@@ -72,10 +71,10 @@ export default class Connection {
     };
   }
 
-  open() {
-    logger.info('Connecting');
-    for (const track of this.userMedia.getTracks()) {
-      this.pc.addTrack(track, this.userMedia);
+  addTracks(stream) {
+    for (const track of stream.getTracks()) {
+      logger.info('Sending local', track.kind);
+      this.pc.addTrack(track, stream);
     }
   }
 
@@ -86,81 +85,6 @@ export default class Connection {
       this.pc = null;
       logger.info('Connection closed');
     }
-    if (this.userMedia) {
-      for (const track of this.userMedia.getTracks()) {
-        track.stop();
-        logger.info('Stopped local', track.kind, 'track');
-      }
-      this.userMedia = null;
-    }
-  }
-
-  // User media methods.
-
-  initUserMedia(successHandler, errorHandler, audio, video) {
-    const onSuccess = (stream) => {
-      this.userMedia = stream;
-      if (this.clientId) {
-        successHandler();
-      } else {
-
-        /*
-         * This runs when the connection closes while getUserMedia is
-         * generating a local media stream.
-         *
-         * In September of 2020, there must be some kind of race condition
-         * in Android Chromium (Android 10 Chrome, Android 6 Vivaldi)
-         * when media stream tracks are stopped too soon after starting.
-         *
-         * Tracks are live before they're stopped, and ended after,
-         * but stopping them so soon after starting must leave a reference
-         * behind somewhere, because the browser shows media devices
-         * as active, even after stream tracks close.
-         *
-         * A slight pause before stopping tracks seems to take care
-         * of the problem.
-         *
-         * I haven't seen this in Firefox, Chromium or Vivaldi on Linux,
-         * so I assume it's Android only.
-         */
-
-        const sleep = () => new Promise((resolve) => setTimeout(resolve, 500));
-        sleep().then(() => {
-          this.close();
-        });
-      }
-    }
-    const onError = (error) => {
-      errorHandler(error);
-    }
-    this._getUserMedia(onSuccess, onError, audio, video);
-  }
-
-  _getUserMedia(onSuccess, onError, audio, video) {
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-      let hasAudio = false;
-      let hasVideo = false;
-      for (const device of devices) {
-        if (device.kind.startsWith('audio')) {
-          logger.info('Found audio device');
-          hasAudio = true;
-        } else if (device.kind.startsWith('video')) {
-          logger.info('Found video device');
-          hasVideo = true;
-        }
-      }
-      if (audio && !hasAudio) {
-        throw new Error('No audio devices.');
-      }
-      if (video && !hasVideo) {
-        throw new Error('No video devices.');
-      }
-      return navigator.mediaDevices.getUserMedia({audio, video});
-    }).then(stream => {
-      onSuccess(stream);
-    }).catch(error => {
-      onError(error);
-    });
   }
 
   // Inbound signal handlers.

@@ -4,6 +4,7 @@
  */
 import Client from '../client.js';
 import Connection from '../connection.js';
+import LocalMedia from '../local-media.js';
 import NavStatus from './nav-status.js';
 import NavMenu from './nav-menu.js';
 import HelpDialog from './help-dialog.js';
@@ -44,6 +45,7 @@ export default class Peer {
 
     // Connection
     this.connection = new Connection();
+    this.localMedia = new LocalMedia();
 
     // View
     this.view = new View();
@@ -215,13 +217,14 @@ export default class Peer {
       this.view.showAlert(error.message);
       this.view.showModal(this.offersDialog);
       this.connection.close();
+      this.localMedia.stop();
     };
     if (this.connection.isIdle()) {
       logger.info('Offering connection', clientId);
-      this.connection.setConnected(clientId, true, location.hostname);
+      this.connection.open(clientId, true, location.hostname);
+      this.localMedia.start(onSuccess, onError);
       this.offerDialog.setInitializing();
       this.view.showModal(this.offerDialog);
-      this.connection.initUserMedia(onSuccess, onError, true, true);
     }
   }
 
@@ -236,6 +239,7 @@ export default class Peer {
     this.offerDialog.setClosed();
     this.view.hideModal(this.offerDialog);
     this.connection.close();
+    this.localMedia.stop();
     this.client.publish({
       peerStatus: STATUS.available,
       peerName: this.nameDialog.peerName
@@ -281,8 +285,8 @@ export default class Peer {
       logger.info('Accepted offer', clientId);
       this.view.showPlayer();
       this.view.hideModal(this.offersDialog);
-      this.connection.setConnected(clientId, false, location.hostname);
-      this.connection.initUserMedia(onSuccess, onError, true, true);
+      this.connection.open(clientId, false, location.hostname);
+      this.localMedia.start(onSuccess, onError);
     }
   }
 
@@ -319,13 +323,14 @@ export default class Peer {
       this.view.setNavStatus(this.navStatus.menu);
       this.navMenu.setConnected(clientId);
       this.view.setNavMenu(this.navMenu.menu);
-      this.connection.open();
+      this.connection.addTracks(this.localMedia.mediaStream);
     }
   }
 
   _closeConnection() {
     this.view.hidePlayer();
     this.connection.close();
+    this.localMedia.stop();
     this.navStatus.setIdle();
     this.view.setNavStatus(this.navStatus.menu);
     this.navMenu.setOnline();
