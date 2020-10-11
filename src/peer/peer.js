@@ -159,6 +159,7 @@ export default class Peer {
   }
 
   _showNameDialog() {
+    this.nameDialog.resetNameField();
     this.view.showModal(this.nameDialog);
   }
 
@@ -376,8 +377,7 @@ export default class Peer {
 
   _onReady() {
     this.nameDialog.setName(
-      this.client.clientId,
-      this.client.getChannelVar('peerName')
+      this.client.clientId, this.client.getChannelVar('peerName')
     );
     this.navStatus.setName(this.client.clientId, this.nameDialog.peerName);
     this.navStatus.setIdle();

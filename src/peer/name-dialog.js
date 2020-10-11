@@ -40,9 +40,16 @@ export default class NameDialog {
     this.peerId = clientId.substr(0, 5);
     if (peerName && this.isValid(peerName)) {
       this.peerName = peerName;
-      this.nameField.value = peerName;
     } else {
       this.peerName = '';
+    }
+    this.resetNameField();
+  }
+
+  resetNameField() {
+    if (this.peerName) {
+      this.nameField.value = this.peerName;
+    } else {
       this.nameField.value = this.peerId;
     }
     this.nameField.setCustomValidity('');
