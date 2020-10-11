@@ -4,13 +4,12 @@
  */
 const HELP_TEXT = [
   'You\'ll need a camera and a microphone. '
-  + 'Make sure the browser has permission to use them.',
+  + 'Give the browser permission to use them.',
 
   'Check volume levels.',
 
-  'Poor wireless is often the cause of poor quality calls.',
-
-  'Connect directly to the local network by wire, if possible, '
+  'Poor wireless is often the cause of poor quality calls. '
+  + 'Connect directly to the local network by wire, if possible, '
   + 'and avoid using wireless headphones and mics.',
 
   'ICE fails when firewalls get in the way. '

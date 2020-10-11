@@ -63,12 +63,12 @@ class ActivityWatcher {
 
 class AlertModal {
 
-  constructor(header) {
-    this.header = header;
+  constructor() {
     this.body = this._messagePanel();
     this.footer = this._footer();
-    this.modalContent = [this.header, this.body, this.footer];
+    this.modalContent = [this.body, this.footer];
     this.messageDiv = this.body.querySelector('#alert-message');
+    this.closeButton = this.footer.querySelector('#alert-close');
     this.message = null;
     this.onClose = () => {};
   }
@@ -83,15 +83,16 @@ class AlertModal {
   }
 
   _footer() {
-    const button = document.createElement('button');
-    button.textContent = 'OK';
-    button.setAttribute('title', 'Acknowledge this alert');
-    button.style.float = 'right';
-    button.addEventListener('click', () => {
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'OK';
+    closeButton.setAttribute('id', 'alert-close');
+    closeButton.setAttribute('title', 'Acknowledge this message');
+    closeButton.style.float = 'right';
+    closeButton.addEventListener('click', () => {
       this.onClose();
     });
     const footer = document.createElement('footer');
-    footer.append(button);
+    footer.append(closeButton);
     return footer;
   }
 
@@ -108,8 +109,9 @@ class AlertModal {
 export default class View {
 
   constructor() {
+
+    // View
     this.navBar = document.querySelector('#nav-bar');
-    this.activityWatcher = new ActivityWatcher(this.navBar);
     this.navMenu = document.querySelector('#nav-menu');
     this.navStatus = document.querySelector('#nav-status');
     this.channelInfoPanel = document.querySelector('#channel-info');
@@ -117,13 +119,20 @@ export default class View {
     this.modalControl = document.querySelector('#modal-control');
     this.modalOverlay = document.querySelector('#modal-overlay');
     this.videoElement = document.querySelector('#media-player');
-    this._addEscapeListener();
+
+    // Alert modal
     this.alertModal = new AlertModal(
       this.modalHeader('Alert')
     );
-    this.alertModal.onClose = this._onCloseAlert.bind(this)
+    this.alertModal.onClose = this.hideAlert.bind(this)
+    this.alertModal.enableModalControl = true;
+
+    // Modal
     this.modal = null;
     this.oldModal = null;
+
+    this.activityWatcher = new ActivityWatcher(this.navBar);
+    this._addEscapeListener();
   }
 
   _addEscapeListener() {
@@ -132,7 +141,7 @@ export default class View {
         if (this.modal && this.modal.onModalEscape) {
           this.modal.onModalEscape();
         } else if (this.alertModal.isActive()) {
-          this._onCloseAlert();
+          this.hideAlert();
         }
       }
     });
@@ -148,7 +157,7 @@ export default class View {
   }
 
   _setModalContent(modal) {
-    if (modal.enableCloseControl) {
+    if (modal.enableModalControl) {
       this.modalControl.disabled = false;
       this.modalOverlay.classList.remove('disabled');
     } else {
@@ -195,12 +204,12 @@ export default class View {
     this._setContent(this.channelInfoPanel, ...elements);
   }
 
-  modalHeader(title, enableCloseControl = false) {
+  modalHeader(title, enableModalControl = false) {
     const heading = document.createElement('h3');
     heading.textContent = title;
     const header = document.createElement('header');
     header.append(heading);
-    if (enableCloseControl) {
+    if (enableModalControl) {
       const label = document.createElement('label');
       label.innerHTML = '&times;';
       label.classList.add('close');
@@ -223,9 +232,10 @@ export default class View {
     this.modal = null;
     this._setModalContent(this.alertModal);
     this.modalControl.checked = true;
+    this.alertModal.closeButton.focus();
   }
 
-  _onCloseAlert() {
+  hideAlert() {
     this.alertModal.message = null;
     if (this.oldModal) {
       this.modal = this.oldModal;

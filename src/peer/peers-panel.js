@@ -95,12 +95,12 @@ export default class PeersPanel {
     for (const clientId in this.peers) {
       const diff = now - this.peers[clientId].added;
       if (diff > 60000) {
-        expired.push(clientId);
+        expired.push(this.peers[clientId]);
       }
     }
-    for (const clientId of expired) {
-      logger.info('Peer expired', clientId);
-      this.removePeer(clientId);
+    for (const peer of expired) {
+      logger.info('Peer expired', peer.clientId);
+      this.removePeer(peer.clientId);
     }
     return expired;
   }

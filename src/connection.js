@@ -10,8 +10,8 @@ export default class Connection {
     this.clientId = null;
     this.isPolite = null;
     this.pc = null;
-    this.makingOffer = false;
-    this.ignoreOffer = false;
+    this.isOffering = false;
+    this.isIgnoringOffers = false;
     this.onTrack = () => {};
     this.onSdp = () => {};
     this.onCandidate = () => {};
@@ -53,7 +53,7 @@ export default class Connection {
     };
     this.pc.onnegotiationneeded = async () => {
       try {
-        this.makingOffer = true;
+        this.isOffering = true;
         const offer = await this.pc.createOffer();
         if (this.pc.signalingState !== 'stable') {
           logger.info('Abandoning SDP negotiation');
@@ -66,7 +66,7 @@ export default class Connection {
       } catch (error) {
         logger.error('SDP negotiation error', error);
       } finally {
-        this.makingOffer = false;
+        this.isOffering = false;
       }
     };
   }
@@ -96,7 +96,7 @@ export default class Connection {
       try {
         await this.pc.addIceCandidate(jsonCandidate);
       } catch (error) {
-        if (!this.ignoreOffer) {
+        if (!this.isIgnoringOffers) {
           logger.error('Error adding remote candidate', error);
         }
       }
@@ -107,10 +107,10 @@ export default class Connection {
     const sdp = new RTCSessionDescription(jsonSdp);
     const offerCollision = (
       sdp.type === 'offer'
-      && (this.makingOffer || this.pc.signalingState !== 'stable')
+      && (this.isOffering || this.pc.signalingState !== 'stable')
     );
-    this.ignoreOffer = !this.isPolite && offerCollision;
-    if (this.ignoreOffer) {
+    this.isIgnoringOffers = !this.isPolite && offerCollision;
+    if (this.isIgnoringOffers) {
       logger.info('Ignoring SDP offer');
       return;
     }
