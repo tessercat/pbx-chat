@@ -6,32 +6,21 @@ import logger from './logger.js';
 
 export default class Connection {
 
-  constructor() {
-    this.clientId = null;
-    this.isPolite = null;
+  constructor(isPolite, stunServer) {
+    this.isPolite = isPolite;
     this.pc = null;
-    this.isOffering = false;
+    this._init(stunServer);
+    this.isOfferingSdp = false;
     this.isIgnoringOffers = false;
+
     this.onTrack = () => {};
     this.onSdp = () => {};
     this.onCandidate = () => {};
-    this.onIceError = () => {};
+    this.onConnected = () => {};
+    this.onFailed = () => {};
   }
 
-  isConnectedTo(clientId) {
-    if (clientId && this.clientId) {
-      return clientId === this.clientId;
-    }
-    return false;
-  }
-
-  isIdle() {
-    return this.clientId === null;
-  }
-
-  open(clientId, isPolite, stunServer) {
-    this.clientId = clientId;
-    this.isPolite = isPolite;
+  _init(stunServer) {
     const configuration = {
       iceServers: [{urls: `stun:${stunServer}`}],
     }
@@ -45,15 +34,20 @@ export default class Connection {
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
         this.onCandidate(event.candidate.toJSON());
-      } else {
-        if (this.pc.connectionState === 'failed') {
-          this.onIceError();
-        }
       }
     };
+    this.pc.onconnectionstatechange = () => {
+      if (this.pc.connectionState === 'connected') {
+        logger.info('Connected');
+        this.onConnected();
+      } else if (this.pc.connectionState === 'failed') {
+        logger.info('Failed');
+        this.onFailed();
+      }
+    }
     this.pc.onnegotiationneeded = async () => {
       try {
-        this.isOffering = true;
+        this.isOfferingSdp = true;
         const offer = await this.pc.createOffer();
         if (this.pc.signalingState !== 'stable') {
           logger.info('Abandoning SDP negotiation');
@@ -66,9 +60,17 @@ export default class Connection {
       } catch (error) {
         logger.error('SDP negotiation error', error);
       } finally {
-        this.isOffering = false;
+        this.isOfferingSdp = false;
       }
     };
+  }
+
+  close() {
+    if (this.isOpen()) {
+      this.pc.close();
+      this.pc = null;
+      logger.info('Connection closed');
+    }
   }
 
   addTracks(stream) {
@@ -78,43 +80,30 @@ export default class Connection {
     }
   }
 
-  close() {
-    this.clientId = null;
-    if (this.pc) {
-      this.pc.close();
-      this.pc = null;
-      logger.info('Connection closed');
-    }
-  }
-
   // Inbound signal handlers.
 
-  async addCandidate(jsonCandidate) {
-    if (this.pc.connectionState === 'failed') {
-      this.onIceError();
-    } else {
-      try {
-        await this.pc.addIceCandidate(jsonCandidate);
-      } catch (error) {
-        if (!this.isIgnoringOffers) {
-          logger.error('Error adding remote candidate', error);
-        }
+  async addCandidate(candidate) {
+    try {
+      await this.pc.addIceCandidate(candidate);
+    } catch (error) {
+      if (!this.isIgnoringOffers) {
+        logger.error('Error adding remote candidate', error);
       }
     }
   }
 
-  async addSdp(jsonSdp, sdpHandler) {
-    const sdp = new RTCSessionDescription(jsonSdp);
-    const offerCollision = (
+  async addSdp(sdpDict, sendAnswer) {
+    const sdp = new RTCSessionDescription(sdpDict);
+    const isOfferCollision = (
       sdp.type === 'offer'
-      && (this.isOffering || this.pc.signalingState !== 'stable')
+      && (this.isOfferingSdp || this.pc.signalingState !== 'stable')
     );
-    this.isIgnoringOffers = !this.isPolite && offerCollision;
+    this.isIgnoringOffers = !this.isPolite && isOfferCollision;
     if (this.isIgnoringOffers) {
       logger.info('Ignoring SDP offer');
       return;
     }
-    if (offerCollision) {
+    if (isOfferCollision) {
       await Promise.all([
         this.pc.setLocalDescription({type: "rollback"}).catch((error) => {
           logger.error('SDP rollback error', error);
@@ -128,7 +117,7 @@ export default class Connection {
     }
     if (sdp.type === 'offer') {
       await this.pc.setLocalDescription(await this.pc.createAnswer());
-      sdpHandler(this.pc.localDescription.toJSON());
+      sendAnswer(this.pc.localDescription.toJSON());
     }
   }
 }

@@ -1,0 +1,126 @@
+/* Primitives from Tania Rascia's MIT-licensed primitive-ui. */
+
+// Reset
+html {
+    box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
+
+figure {
+    margin: 0;
+}
+
+// Scaffolding
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font: $font-style $font-variant $font-weight #{$font-size}/#{$line-height} $font-family;
+    font-size: $font-size;
+}
+
+body {
+    color: $font-color;
+    background: $background;
+    font-size: $body-font-size-mobile;
+}
+
+p {
+    margin: 0 0 $margins 0;
+}
+
+h1, h2, h3, h4, h5 {
+    margin: $margins 0;
+    font-weight: $heading-font-weight;
+    font-family: $heading-font-family;
+    line-height: $heading-line-height;
+    color: $heading-font-color;
+
+    &:not(:first-child) {
+        margin: 1.5rem 0;
+    }
+}
+
+// Increased margin on additional headings
+h1:not(:first-child),
+h2:not(:first-child),
+h3:not(:first-child) {
+    margin-top: 2rem;
+}
+
+// Heading individual styles
+h1 {
+    font-size: $h1-mobile;
+}
+
+h2 {
+    font-size: $h2-mobile;
+}
+
+h3 {
+    font-size: $h3-mobile;
+}
+
+h4 {
+    font-size: $h4-mobile;
+}
+
+h5 {
+    font-size: $h5-mobile;
+}
+
+// Mobile-first
+@include small-breakpoint {
+
+    // Bigger font size
+    body {
+        font-size: $body-font-size;
+    }
+
+    // Bigger header margins
+    h1:not(:first-child),
+    h2:not(:first-child),
+    h3:not(:first-child) {
+        margin-top: 2.5rem;
+    }
+
+    // Bigger headers
+    h1 {
+        font-size: $h1;
+    }
+
+    h2 {
+        font-size: $h2;
+    }
+
+    h3 {
+        font-size: $h3;
+    }
+
+    h4 {
+        font-size: $h4;
+    }
+
+    h5 {
+        font-size: $h5;
+    }
+}
+
+// Default link styling
+a {
+    color: $link-color;
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover,
+    &:active,
+    &:focus {
+        color: $link-hover-color;
+        text-decoration-color: $link-color;
+        border-bottom: 3px solid $link-color;
+    }
+}

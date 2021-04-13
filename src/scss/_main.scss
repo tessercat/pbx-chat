@@ -1,0 +1,44 @@
+/* Common main */
+
+main.padded {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+main {
+
+    max-width: $small;
+    margin-left: auto;
+    margin-right: auto;
+
+    p.error {
+        margin-top: 3rem;
+        font-size: larger;
+        text-align: center;
+    }
+
+    footer {
+        margin-top: 3rem;
+        margin-bottom: 4rem;
+        font-size: smaller;
+        text-align: center;
+
+        a {
+            font-weight: 500;
+                &:hover,
+                &:active,
+                &:focus {
+                    border-bottom: 2px solid $link-color;
+                }
+            }
+
+        ul {
+            list-style: none;
+            padding: inherit;
+        }
+
+        li {
+            margin-bottom: 1rem;
+        }
+    }
+}

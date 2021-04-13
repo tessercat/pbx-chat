@@ -1,29 +1,28 @@
 /*
- *  Copyright (c) 2020 Peter Christensen. All Rights Reserved.
+ *  Copyright (c) 2021 Peter Christensen. All Rights Reserved.
  *  CC BY-NC-ND 4.0.
  */
 import adapter from "webrtc-adapter";
-import Peer from './peer.js';
+import ConferenceClient from './client.js';
+
+document.debugLogEnabled = false;
+document.vertoLogEnabled = true;
+document.infoLogEnabled = true;
 
 if (adapter.browserDetails.browser.startsWith("Not")) {
   alert("Your browser is not supported.");
 } else {
   window.addEventListener('load', function () {
-    document.debugLogEnabled = false;
-    document.clientLogEnabled = false;
-    document.infoLogEnabled = true;
-    document.peer = new Peer();
-    document.peer.connect();
+    document.client = new ConferenceClient();
+    document.client.open();
   });
   window.addEventListener('beforeunload', function (event) {
-    if (!document.peer.connection.isIdle()) {
+    if (document.client.woot) {
       event.preventDefault();
       event.returnValue = '';
-    } else {
-      document.peer.disconnect();
     }
   });
   window.addEventListener('unload', function () {
-    document.peer.disconnect();
+    document.client.close();
   });
 }

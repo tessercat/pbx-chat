@@ -10,27 +10,24 @@ export default class LocalMedia {
     this.isPolite = null;
     this.mediaStream = null;
     this.isStarting = false;
+    this.isStopped = false;
   }
 
-  stop() {
-    this.isStarting = false;
+  stop(onStopped) {
+    this.isStopped = true;
     if (this.mediaStream) {
-      for (const track of this.mediaStream.getTracks()) {
-        track.stop();
-        logger.info('Stopped local', track.kind, 'track');
-      }
-      this.mediaStream = null;
+      this._stopTracks();
+      onStopped();
+    } else if (!this.isStarting) {
+      onStopped();
     }
   }
 
-  start(onSuccess, onError) {
-    this.isStarting = true;
+  start(onStarted, onStopped, onError) {
     const onMediaSuccess = (stream) => {
+      this.isStarting = false;
       this.mediaStream = stream;
-      if (this.isStarting) {
-        this.isStarting = false;
-        onSuccess();
-      } else {
+      if (this.isStopped) {
 
         /*
          * This runs when media stops before getUserMedia returns.
@@ -53,19 +50,33 @@ export default class LocalMedia {
 
         const sleep = () => new Promise((resolve) => setTimeout(resolve, 500));
         sleep().then(() => {
-          this.stop();
+          this._stopTracks();
+          onStopped();
         });
+      } else {
+        onStarted();
       }
     }
     const onMediaError = (error) => {
       this.isStarting = false;
       onError(error);
     }
-    this._getUserMedia(onMediaSuccess, onMediaError, true, true);
+    this.isStarting = true;
+    this.isStopped = false;
+    this._start(onMediaSuccess, onMediaError, true, true);
   }
 
-  _getUserMedia(onSuccess, onError, audio, video) {
-    navigator.mediaDevices.enumerateDevices().then(devices => {
+  _stopTracks() {
+    for (const track of this.mediaStream.getTracks()) {
+      track.stop();
+      logger.info('Stopped local', track.kind, 'track');
+    }
+    this.mediaStream = null;
+  }
+
+  async _start(onSuccess, onError, audio, video) {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
       let hasAudio = false;
       let hasVideo = false;
       for (const device of devices) {
@@ -83,11 +94,9 @@ export default class LocalMedia {
       if (video && !hasVideo) {
         throw new Error('No local video devices.');
       }
-      return navigator.mediaDevices.getUserMedia({audio, video});
-    }).then(stream => {
-      onSuccess(stream);
-    }).catch(error => {
-      onError(error);
-    });
+      onSuccess(await navigator.mediaDevices.getUserMedia({audio, video}));
+    } catch (error) {
+      onError(error.message);
+    }
   }
 }

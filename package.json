@@ -1,29 +1,57 @@
 {
-  "name": "pbx-client",
-  "version": "0.0.0",
-  "description": "PBX client",
+  "name": "pbx-ui",
+  "version": "0.0.1",
+  "description": "PBX UI",
   "main": "index.js",
   "scripts": {
-    "build": "webpack"
+    "css:clean": "rimraf dist/css/*",
+    "css:gzip": "gzip dist/css/*.?????.css",
+    "css:common:dev:sass": "node-sass src/scss/common.scss dist/css/common.pre.css --output-style expanded",
+    "css:common:dev:post": "postcss dist/css/common.pre.css --config postcss/dev --no-map --output dist/css/common.post.css",
+    "css:common:dev:build": "npm run css:common:dev:sass && npm run css:common:dev:post",
+    "css:common:dist:sass": "node-sass src/scss/common.scss dist/css/common.css --output-style compressed",
+    "css:common:dist:post": "postcss dist/css/common.css --config postcss/dist --no-map --output dist/css/common.css",
+    "css:common:dist:build": "npm run css:common:dist:sass && npm run css:common:dist:post",
+    "css:conference:dev:sass": "node-sass src/scss/conference.scss dist/css/conference.pre.css --output-style expanded",
+    "css:conference:dev:post": "postcss dist/css/conference.pre.css --config postcss/dev --no-map --output dist/css/conference.post.css",
+    "css:conference:dev:build": "npm run css:conference:dev:sass && npm run css:conference:dev:post",
+    "css:conference:dist:sass": "node-sass src/scss/conference.scss dist/css/conference.css --output-style compressed",
+    "css:conference:dist:post": "postcss dist/css/conference.css --config postcss/dist --no-map --output dist/css/conference.css",
+    "css:conference:dist:build": "npm run css:conference:dist:sass && npm run css:conference:dist:post",
+    "js:clean": "rimraf dist/js/*",
+    "js:gzip": "gzip dist/js/*.?????.js",
+    "js:build": "webpack",
+    "clean": "npm run css:clean && npm run js:clean",
+    "gzip": "npm run css:gzip && npm run js:gzip",
+    "build": "npm run clean && npm run css:common:dev:build && npm run css:common:dist:build && npm run css:conference:dev:build && npm run css:conference:dist:build && npm run js:build && npm run gzip"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tessercat/pbx-client.git"
+    "url": "git+https://github.com/tessercat/pbx-ui.git"
   },
   "author": "Peter Christensen",
   "license": "CC-BY-NC-ND-4.0",
   "bugs": {
-    "url": "https://github.com/tessercat/pbx-client/issues"
+    "url": "https://github.com/tessercat/pbx-ui/issues"
   },
-  "homepage": "https://github.com/tessercat/pbx-client",
+  "homepage": "https://github.com/tessercat/pbx-ui",
   "devDependencies": {
+    "autoprefixer": "^10.2.5",
     "clean-webpack-plugin": "^3.0.0",
     "compression-webpack-plugin": "^4.0.1",
     "copy-webpack-plugin": "^6.4.1",
-    "eslint": "^7.18.0",
+    "eslint": "^7.24.0",
+    "gzip-cli": "^1.2.0",
+    "node-sass": "^5.0.0",
+    "postcss": "^8.2.10",
+    "postcss-cli": "^8.3.1",
+    "postcss-hash": "^2.0.0",
+    "rimraf": "^3.0.2",
     "webpack": "^4.46.0",
     "webpack-cli": "^3.3.12",
-    "webrtc-adapter": "^7.7.0"
+    "webrtc-adapter": "^7.7.1"
   },
-  "dependencies": {}
+  "dependencies": {
+    "npm": "^7.9.0"
+  }
 }

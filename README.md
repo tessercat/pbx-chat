@@ -1,4 +1,4 @@
-This node package
+This NPM package
 is a FreeSWITCH verto endpoint
 WebSocket client
 to support the features of the project
@@ -7,13 +7,10 @@ documented at
 
 # Dev
 
-Requires root on the dev host
-to change the `pbx-web` user's shell,
-to clone the repo to `/opt/pbx`
-and to run the deploy commands.
+## nvm
 
 [Install nvm](https://github.com/nvm-sh/nvm#install--update-script)
-for the `pbx-web` shell account.
+into the `pbx-web` shell account.
 
 Check the lastest version and:
 
@@ -24,7 +21,14 @@ Check the lastest version and:
 Start a new terminal and:
 
     nvm install node
-    cd /opt/pbx/client
+    cd /opt/pbx/ui
     npm install
     git checkout dev
-    npm run-script build
+    npm run build
+
+## Update
+
+    nvm install-latest-npm
+    npm update
+    npm rebuild
+    npx browserslist@latest --update-db

@@ -1,0 +1,56 @@
+// Containers
+$x-small: 600px !default;
+$small: 800px !default;
+$medium: 1000px !default;
+$large: 1200px !default;
+
+// Breakpoints
+$mobile: $x-small !default;
+$tablet: $small !default;
+$desktop: $medium !default;
+
+// Global Colors
+$background: #1f2022 !default;
+$light-background: #2d2d31;
+$link-color: #6ab0f3 !default;
+$link-hover-color: white !default;
+
+// Body
+$font-size: 1rem !default;
+$body-font-size: 1.2rem !default;
+$body-font-size-mobile: 1rem !default;
+$font-style: normal !default;
+$font-variant: normal !default;
+$font-weight: normal !default;
+$font-color: #ced4da !default;
+$font-family: sans-serif !default;
+$line-height: 1.6 !default;
+
+// Headings
+$heading-font-color: #ffd479 !default;
+$heading-font-weight: 600 !default;
+$heading-font-family: sans-serif !default;
+$heading-line-height: 1.2 !default;
+
+$h1: 1.8rem !default;
+$h2: 1.65rem !default;
+$h3: 1.5rem !default;
+$h4: 1.35rem !default;
+$h5: 1.2rem !default;
+
+$h1-mobile: 1.6rem !default;
+$h2-mobile: 1.45rem !default;
+$h3-mobile: 1.3rem !default;
+$h4-mobile: 1.15rem !default;
+$h5-mobile: 1rem !default;
+
+// Spacing
+$margins: 1.5rem !default;
+
+// Error
+$error-font-size: $body-font-size + 0.2rem !default;
+$error-font-size-mobile: $body-font-size-mobile + 0.1rem !default;
+
+// Footer
+$footer-font-size: $body-font-size - 0.2rem !default;
+$footer-font-size-mobile: $body-font-size-mobile - 0.1rem !default;

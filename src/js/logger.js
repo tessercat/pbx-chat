@@ -3,15 +3,7 @@
  *  CC BY-NC-ND 4.0.
  */
 function logPrefix() {
-  if (!document.pbxLogPrefix) {
-    const pbxScript = document.querySelector('#pbx-client-script');
-    if (pbxScript) {
-      document.pbxLogPrefix = pbxScript.src.split('/').pop().split('.')[0];
-    } else {
-      document.pbxLogPrefix = 'pbx-client';
-    }
-  }
-  return `[${document.pbxLogPrefix} ${new Date().toLocaleTimeString()}]`;
+  return `[pbx-client ${new Date().toLocaleTimeString()}]`;
 }
 
 let logger = {
@@ -20,8 +12,8 @@ let logger = {
       console.debug(logPrefix(), ...args);
     }
   },
-  client: (...args) => {
-    if (document.clientLogEnabled) {
+  verto: (...args) => {
+    if (document.vertoLogEnabled) {
       console.log(logPrefix(), ...args);
     }
   },

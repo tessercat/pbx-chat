@@ -7,11 +7,11 @@ module.exports = {
   mode: "development",
   devtool: false,
   entry: {
-    main: path.resolve(__dirname, 'src/peer/index.js'),
+    main: path.resolve(__dirname, 'src/js/conference/index.js'),
   },
   output: {
-    path:  path.resolve(__dirname, 'dist'),
-    filename: "peer-[contenthash:5].js",
+    path: path.resolve(__dirname, 'dist/js'),
+    filename: "client.[contenthash:5].js",
   },
   externals: {
     "webrtc-adapter": "adapter"
@@ -22,7 +22,7 @@ module.exports = {
       patterns: [
         {
           from: "node_modules/webrtc-adapter/out/adapter.js",
-          to: "adapter-[contenthash:5].js",
+          to: "adapter.[contenthash:5].js",
         }
       ]
     }),
