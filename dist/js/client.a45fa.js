@@ -244,8 +244,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const CONST = {
-  uuidRegExp: new RegExp(/[-0-9a-f]{36}/, 'i'),
   authRequired: -32000,
+  uuidRegExp: new RegExp(/[-0-9a-f]{36}/, 'i'),
 }
 
 class VertoRequest {
@@ -317,26 +317,25 @@ class VertoClient {
 
   subscribe() {
     const onSuccess = () => {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Subscribed');
       if (this.onSub) {
         this.onSub();
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Subscribed');
       }
     }
     const onError = (error) => {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Subscription error', error);
       if (this.onSubError) {
         this.onSubError(error);
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Subscription error', error);
       }
     }
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Subscribe');
     this._sendRequest('verto.subscribe', {
       eventChannel: this.channelId
     }, onSuccess, onError);
   }
 
   publish(eventData, onSuccess, onError) {
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Publishing event', eventData);
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Publish', eventData);
     const encoded = this._encode(eventData);
     if (encoded) {
       const onRequestSuccess = (message) => {
@@ -344,13 +343,12 @@ class VertoClient {
           if (onError) {
             onError(message);
           } else {
-            _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Publish event error', message);
+            _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Publish error', message);
           }
         } else {
+          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Published', message)
           if (onSuccess) {
             onSuccess(message);
-          } else {
-            _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Published event', message)
           }
         }
       }
@@ -360,16 +358,15 @@ class VertoClient {
         eventData: encoded,
       }, onRequestSuccess, onError);
     } else {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Publish encoding error', eventData);
       if (onError) {
-        onError('Encoding error');
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Encoding error', eventData);
+        onError(eventData);
       }
     }
   }
 
   sendMessage(clientId, msgData, onSuccess, onError) {
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Sending message', clientId, msgData);
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Message', clientId, msgData);
     const encoded = this._encode(msgData);
     if (encoded) {
       this._sendRequest('verto.info', {
@@ -379,6 +376,7 @@ class VertoClient {
         }
       }, onSuccess, onError);
     } else {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Message encoding error', msgData);
       if (onError) {
         onError(msgData);
       }
@@ -387,21 +385,17 @@ class VertoClient {
 
   // Verto socket event handlers
 
-  _validateUuid() {
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  }
-
   _onSocketOpen() {
     let allowRetry = true;
     const onSuccess = (sessionData) => {
       if (sessionData.sessionId !== this._getSessionId()) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad sessionId');
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad sessionId', sessionData);
         this.close();
       } else if (!CONST.uuidRegExp.test(sessionData.clientId)) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad clientId');
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad clientId', sessionData);
         this.close();
       } else if (!CONST.uuidRegExp.test(sessionData.password)) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad password');
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad password', sessionData);
         this.close();
       } else {
         this.sessionData = sessionData;
@@ -410,38 +404,34 @@ class VertoClient {
     }
     const onError = (error) => {
       if (allowRetry && error.message === '404') {
-        allowRetry = false; // allow one retry with new sessionId on 404.
+        allowRetry = false; // allow one retry with new sessionId on 404
         this.getSessionData(this._getSessionId(true), onSuccess, onError);
       } else {
         _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error(error);
         this.close();
       }
     }
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Socket open');
     this._resetClientState();
     this.getSessionData(this._getSessionId(), onSuccess, onError);
     if (this.onOpen) {
       this.onOpen();
-    } else {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Socket open');
     }
   }
 
   _onSocketClose() {
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Socket closed');
     this._resetClientState();
     if (this.onClose) {
       this.onClose();
-    } else {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Socket closed');
     }
   }
 
   _onSocketMessage(event) {
     const message = this._parse(event.data);
     if (this.responseCallbacks[message.id]) {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('Received response', message);
       this._handleResponse(message);
     } else {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('Received event', message);
       this._handleEvent(message);
     }
   }
@@ -449,9 +439,9 @@ class VertoClient {
   // Client state helpers
 
   _cleanResponseCallbacks() {
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Cleaning callbacks');
     const expired = [];
     const now = new Date();
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Cleaning callbacks');
     for (const requestId in this.responseCallbacks) {
       const diff = now - this.responseCallbacks[requestId].sent;
       if (diff > this.requestExpiry) {
@@ -528,7 +518,7 @@ class VertoClient {
     this.responseCallbacks[request.id] = new ResponseCallbacks(
       onSuccess, onError
     );
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('Sending request', request);
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Request', request);
     this.socket.send(request);
   }
 
@@ -541,24 +531,24 @@ class VertoClient {
   }
 
   _ping() {
-    this._cleanResponseCallbacks();
     const onError = (message) => {
       if (this.onPingError) {
         this.onPingError(message);
       } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Ping failure', message);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Ping error', message);
       }
     }
     const onSuccess = () => {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Ping success');
       if (this.onPing) {
         this.onPing();
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Ping success');
       }
       const delay = this._pingInterval();
       _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto(`Waiting ${delay} before next ping`);
       this.pingTimer = setTimeout(this._ping.bind(this), delay);
     }
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Ping');
+    this._cleanResponseCallbacks();
     this._sendRequest('echo', {}, onSuccess, onError);
   }
 
@@ -569,6 +559,7 @@ class VertoClient {
     this.isAuthing = true;
     this.isAuthed = false;
     const onSuccess = () => {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Logged in');
       this.isAuthing = false;
       this.isAuthed = true;
       const delay = this._pingInterval();
@@ -576,8 +567,6 @@ class VertoClient {
       this.pingTimer = setTimeout(this._ping.bind(this), delay);
       if (this.onLogin) {
         this.onLogin();
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Logged in');
       }
     };
     const onError = (event) => {
@@ -602,27 +591,26 @@ class VertoClient {
 
   _handleResponse(message) {
     if (message.result) {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Response', message);
       const onSuccess = this.responseCallbacks[message.id].onSuccess;
       if (onSuccess) {
         onSuccess(message);
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Response', message);
       }
     } else {
       if (message.error) {
         const code = parseInt(message.error.code);
         if (code === CONST.authRequired) {
+          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Response auth required', message);
           this._login();
         } else {
+          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Response error', message);
           const onError = this.responseCallbacks[message.id].onError;
           if (onError) {
             onError(message);
-          } else {
-            _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Error response', message);
           }
         }
       } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad response', message);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Response unhandled', message);
       }
     }
     delete this.responseCallbacks[message.id];
@@ -630,10 +618,9 @@ class VertoClient {
 
   _handleEvent(event) {
     if (event.method === 'verto.clientReady') {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Client ready', event.params);
       if (this.onReady) {
         this.onReady(event.params);
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Client ready', event.params);
       }
     } else if (event.method === 'verto.info') {
       if (
@@ -646,23 +633,22 @@ class VertoClient {
         const clientId = msg.to.split('@').shift();
         const message = this._decode(msg.body);
         if (clientId && clientId === this.sessionData.clientId) {
+          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Message', event, message);
           if (this.onMessage) {
             this.onMessage(msg.from, message);
-          } else {
-            _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Message', event, message);
           }
         } else {
-          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Other message', event, message);
+          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Message other', event, message);
         }
       } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Empty message', event);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Message empty', event);
       }
     } else if (event.method === 'verto.event') {
       if (
           event.params
           && event.params.sessid
           && event.params.sessid === this.sessionData.sessionId) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Own event', event);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Event own', event);
       } else if (
           event.params
           && event.params.userid
@@ -671,23 +657,21 @@ class VertoClient {
         if (event.params.eventChannel === this.channelId) {
           const clientId = event.params.userid.split('@').shift();
           const eventData = this._decode(event.params.eventData);
+          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Event', clientId, eventData);
           if (this.onEvent) {
             this.onEvent(clientId, eventData);
-          } else {
-            _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Event', clientId, eventData);
           }
         } else {
-          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Other event', event);
+          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Event other', event);
         }
       } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad event', event);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Event unhandled', event);
       }
     } else if (event.method === 'verto.punt') {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Punt');
       this.close();
       if (this.onPunt) {
         this.onPunt();
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Punt');
       }
     } else {
       _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Unhandled', event);
@@ -817,8 +801,6 @@ class VertoSocket {
         this.retryCount = 0;
         if (this.onOpen) {
           this.onOpen();
-        } else {
-          _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].verto('Socket open');
         }
       }
     }
@@ -827,8 +809,6 @@ class VertoSocket {
       this.socket = null;
       if (this.onClose) {
         this.onClose();
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].verto('Socket closed');
       }
       if (!this.isHalted) {
         const delay = this._retryInterval();
@@ -839,11 +819,9 @@ class VertoSocket {
         }, delay);
       }
     }
-    socket.onmessage = (event) => {
+    socket.onmessage = (message) => {
       if (this.onMessage) {
-        this.onMessage(event);
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].verto('Socket received message', event);
+        this.onMessage(message);
       }
     }
   }

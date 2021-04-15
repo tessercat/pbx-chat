@@ -54,8 +54,6 @@ export default class VertoSocket {
         this.retryCount = 0;
         if (this.onOpen) {
           this.onOpen();
-        } else {
-          logger.verto('Socket open');
         }
       }
     }
@@ -64,8 +62,6 @@ export default class VertoSocket {
       this.socket = null;
       if (this.onClose) {
         this.onClose();
-      } else {
-        logger.verto('Socket closed');
       }
       if (!this.isHalted) {
         const delay = this._retryInterval();
@@ -76,11 +72,9 @@ export default class VertoSocket {
         }, delay);
       }
     }
-    socket.onmessage = (event) => {
+    socket.onmessage = (message) => {
       if (this.onMessage) {
-        this.onMessage(event);
-      } else {
-        logger.verto('Socket received message', event);
+        this.onMessage(message);
       }
     }
   }
