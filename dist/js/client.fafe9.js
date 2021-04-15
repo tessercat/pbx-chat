@@ -97,55 +97,40 @@
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return ConferenceClient; });
 /* harmony import */ var _verto_client_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../verto/client.js */ "./src/js/verto/client.js");
-/* harmony import */ var _logger_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../logger.js */ "./src/js/logger.js");
 /*
  * Copyright (c) 2021 Peter Christensen. All Rights Reserved.
  * CC BY-NC-ND 4.0.
  */
 
-
+//import logger from '../logger.js';
 
 class ConferenceClient {
 
   constructor() {
     this.client = new _verto_client_js__WEBPACK_IMPORTED_MODULE_0__["default"]();
+    this.client.getSessionData = this._getSessionData.bind(this)
   }
 
-  // Public methods
+  open() {
+    this.client.open();
+  }
 
   close() {
     this.client.close();
   }
 
-  open() {
-    const sessionId = this.client.getSessionId();
+  _getSessionData(sessionId, onSuccess, onError) {
     const url = `${location.href}/session?sessionId=${sessionId}`;
     fetch(url).then(response => {
       if (response.ok) {
         return response.json();
       } else {
-        throw new Error(response.status);
+        throw new Error(response);
       }
     }).then(sessionData => {
-      this.client.open(sessionData);
+      onSuccess(sessionData);
     }).catch(error => {
-      if (error.message === '404') {
-        const sessionId = this.client.getSessionId(true);
-        const url = `${location.href}/session?sessionId=${sessionId}`;
-        fetch(url).then(response => {
-          if (response.ok) {
-            return response.json();
-          } else {
-            throw new Error(response.status);
-          }
-        }).then(sessionData => {
-          this.client.open(sessionData);
-        }).catch(error => {
-          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error(error);
-        });
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error(error);
-      }
+      onError(error);
     });
   }
 }
@@ -259,10 +244,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const CONST = {
+  uuidRegExp: new RegExp(/[-0-9a-f]{36}/, 'i'),
   authRequired: -32000,
-  pingMinDelay: 40000,
-  pingMaxDelay: 50000,
-  requestExpiry: 30,
 }
 
 class VertoRequest {
@@ -294,6 +277,12 @@ class VertoClient {
     this.isAuthing = false;
     this.isAuthed = false;
     this.pingTimer = null;
+    this.pingMinDelay = 40 * 1000;
+    this.pingMaxDelay = 50 * 1000;
+    this.requestExpiry = 30 * 1000;
+
+    // See _onSocketOpen
+    this.getSessionData = null;
 
     // Client event handlers
     this.onOpen = null;
@@ -318,18 +307,7 @@ class VertoClient {
 
   // Public interface
 
-  getSessionId(expired = false) {
-    let sessionId = this._getVar('sessionId');
-    if (expired || !sessionId) {
-      sessionId = this._getUuid();
-      this._setVar('sessionId', sessionId);
-    }
-    return sessionId;
-  }
-
-  open(sessionData) {
-    // TODO Validate sessionId, clientId, password.
-    this.sessionData = sessionData;
+  open() {
     this.socket.open();
   }
 
@@ -409,19 +387,47 @@ class VertoClient {
 
   // Verto socket event handlers
 
+  _validateUuid() {
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  }
+
   _onSocketOpen() {
+    let allowRetry = true;
+    const onSuccess = (sessionData) => {
+      if (sessionData.sessionId !== this._getSessionId()) {
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad sessionId');
+        this.close();
+      } else if (!CONST.uuidRegExp.test(sessionData.clientId)) {
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad clientId');
+        this.close();
+      } else if (!CONST.uuidRegExp.test(sessionData.password)) {
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('Bad password');
+        this.close();
+      } else {
+        this.sessionData = sessionData;
+        this._sendRequest('login');
+      }
+    }
+    const onError = (error) => {
+      if (allowRetry && error.message === '404') {
+        allowRetry = false; // allow one retry with new sessionId on 404.
+        this.getSessionData(this._getSessionId(true), onSuccess, onError);
+      } else {
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error(error);
+        this.close();
+      }
+    }
     this._resetClientState();
+    this.getSessionData(this._getSessionId(), onSuccess, onError);
     if (this.onOpen) {
       this.onOpen();
     } else {
       _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Socket open');
     }
-    this._sendRequest('login');
   }
 
   _onSocketClose() {
     this._resetClientState();
-    this.sessionData = null;
     if (this.onClose) {
       this.onClose();
     } else {
@@ -448,7 +454,7 @@ class VertoClient {
     _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Cleaning callbacks');
     for (const requestId in this.responseCallbacks) {
       const diff = now - this.responseCallbacks[requestId].sent;
-      if (diff > CONST.requestExpiry * 1000) {
+      if (diff > this.requestExpiry) {
         expired.push(requestId);
       }
     }
@@ -459,6 +465,7 @@ class VertoClient {
   }
 
   _resetClientState() {
+    this.sessionData = null;
     this.isAuthing = false;
     this.isAuthed = false;
     clearTimeout(this.pingTimer);
@@ -502,6 +509,15 @@ class VertoClient {
     return changed;
   }
 
+  _getSessionId(expired = false) {
+    let sessionId = this._getVar('sessionId');
+    if (expired || !sessionId) {
+      sessionId = this._getUuid();
+      this._setVar('sessionId', sessionId);
+    }
+    return sessionId;
+  }
+
   _sendRequest(method, params, onSuccess, onError) {
     const request = new VertoRequest(
       this.sessionData.sessionId,
@@ -514,6 +530,14 @@ class VertoClient {
     );
     _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('Sending request', request);
     this.socket.send(request);
+  }
+
+  _pingInterval() {
+    return Math.floor(
+      Math.random() * (
+        this.pingMaxDelay - this.pingMinDelay + 1
+      ) + this.pingMinDelay
+    );
   }
 
   _ping() {
@@ -531,18 +555,11 @@ class VertoClient {
       } else {
         _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto('Ping success');
       }
-      this.pingTimer = setTimeout(
-        this._ping.bind(this), this._pingInterval()
-      );
+      const delay = this._pingInterval();
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto(`Waiting ${delay} before next ping`);
+      this.pingTimer = setTimeout(this._ping.bind(this), delay);
     }
     this._sendRequest('echo', {}, onSuccess, onError);
-  }
-
-  _pingInterval() {
-    return Math.floor(
-      Math.random() * (
-        CONST.pingMaxDelay - CONST.pingMinDelay + 1
-      ) + CONST.pingMinDelay);
   }
 
   _login() {
@@ -554,9 +571,9 @@ class VertoClient {
     const onSuccess = () => {
       this.isAuthing = false;
       this.isAuthed = true;
-      this.pingTimer = setTimeout(
-        this._ping.bind(this), this._pingInterval()
-      );
+      const delay = this._pingInterval();
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].verto(`Waiting ${delay} before ping`);
+      this.pingTimer = setTimeout(this._ping.bind(this), delay);
       if (this.onLogin) {
         this.onLogin();
       } else {
@@ -757,8 +774,9 @@ class VertoSocket {
     this.isOpening = false;
     this.isHalted = true;
     this.retryCount = 0;
-    this.retryBackoff = 5;
-    this.retryMaxWait = 30;
+    this.retryBackoff = 5 * 1000;
+    this.retryMaxWait = 30 * 1000;
+    this.retryRange = 5 * 1000;
     this.retryTimer = null;
 
     // Events bindings
@@ -767,21 +785,17 @@ class VertoSocket {
     this.onMessage = null;
   }
 
-  _setRetryTimer() {
+  _retryInterval() {
     let delay = this.retryCount * this.retryBackoff;
     if (delay > this.retryMaxWait) {
       delay = this.retryMaxWait;
     }
-    if (delay) { // Adjust delay by +/- retryBackoff
-      delay += (Math.floor(
-        Math.random() * (this.retryBackoff * 2 + 1)
-      ) - this.retryBackoff);
+    if (delay) {
+      const minDelay = delay - this.retryRange;
+      const maxDelay = delay + this.retryRange;
+      delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
     }
-    _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].verto(`Waiting ${delay}s after ${this.retryCount} tries`);
-    this.retryTimer = setTimeout(() => {
-      this.retryCount += 1;
-      this.open();
-    }, delay * 1000);
+    return delay;
   }
 
   isOpen() {
@@ -817,7 +831,12 @@ class VertoSocket {
         _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].verto('Socket closed');
       }
       if (!this.isHalted) {
-        this._setRetryTimer();
+        const delay = this._retryInterval();
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].verto(`Waiting ${delay} after ${this.retryCount} tries`);
+        this.retryTimer = setTimeout(() => {
+          this.retryCount += 1;
+          this.open();
+        }, delay);
       }
     }
     socket.onmessage = (event) => {

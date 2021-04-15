@@ -11,8 +11,9 @@ export default class VertoSocket {
     this.isOpening = false;
     this.isHalted = true;
     this.retryCount = 0;
-    this.retryBackoff = 5;
-    this.retryMaxWait = 30;
+    this.retryBackoff = 5 * 1000;
+    this.retryMaxWait = 30 * 1000;
+    this.retryRange = 5 * 1000;
     this.retryTimer = null;
 
     // Events bindings
@@ -21,21 +22,17 @@ export default class VertoSocket {
     this.onMessage = null;
   }
 
-  _setRetryTimer() {
+  _retryInterval() {
     let delay = this.retryCount * this.retryBackoff;
     if (delay > this.retryMaxWait) {
       delay = this.retryMaxWait;
     }
-    if (delay) { // Adjust delay by +/- retryBackoff
-      delay += (Math.floor(
-        Math.random() * (this.retryBackoff * 2 + 1)
-      ) - this.retryBackoff);
+    if (delay) {
+      const minDelay = delay - this.retryRange;
+      const maxDelay = delay + this.retryRange;
+      delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
     }
-    logger.verto(`Waiting ${delay}s after ${this.retryCount} tries`);
-    this.retryTimer = setTimeout(() => {
-      this.retryCount += 1;
-      this.open();
-    }, delay * 1000);
+    return delay;
   }
 
   isOpen() {
@@ -71,7 +68,12 @@ export default class VertoSocket {
         logger.verto('Socket closed');
       }
       if (!this.isHalted) {
-        this._setRetryTimer();
+        const delay = this._retryInterval();
+        logger.verto(`Waiting ${delay} after ${this.retryCount} tries`);
+        this.retryTimer = setTimeout(() => {
+          this.retryCount += 1;
+          this.open();
+        }, delay);
       }
     }
     socket.onmessage = (event) => {

@@ -6,10 +6,8 @@ import VertoSocket from './socket.js';
 import logger from '../logger.js';
 
 const CONST = {
+  uuidRegExp: new RegExp(/[-0-9a-f]{36}/, 'i'),
   authRequired: -32000,
-  pingMinDelay: 40000,
-  pingMaxDelay: 50000,
-  requestExpiry: 30,
 }
 
 class VertoRequest {
@@ -41,6 +39,12 @@ export default class VertoClient {
     this.isAuthing = false;
     this.isAuthed = false;
     this.pingTimer = null;
+    this.pingMinDelay = 40 * 1000;
+    this.pingMaxDelay = 50 * 1000;
+    this.requestExpiry = 30 * 1000;
+
+    // See _onSocketOpen
+    this.getSessionData = null;
 
     // Client event handlers
     this.onOpen = null;
@@ -65,18 +69,7 @@ export default class VertoClient {
 
   // Public interface
 
-  getSessionId(expired = false) {
-    let sessionId = this._getVar('sessionId');
-    if (expired || !sessionId) {
-      sessionId = this._getUuid();
-      this._setVar('sessionId', sessionId);
-    }
-    return sessionId;
-  }
-
-  open(sessionData) {
-    // TODO Validate sessionId, clientId, password.
-    this.sessionData = sessionData;
+  open() {
     this.socket.open();
   }
 
@@ -156,19 +149,47 @@ export default class VertoClient {
 
   // Verto socket event handlers
 
+  _validateUuid() {
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  }
+
   _onSocketOpen() {
+    let allowRetry = true;
+    const onSuccess = (sessionData) => {
+      if (sessionData.sessionId !== this._getSessionId()) {
+        logger.error('Bad sessionId');
+        this.close();
+      } else if (!CONST.uuidRegExp.test(sessionData.clientId)) {
+        logger.error('Bad clientId');
+        this.close();
+      } else if (!CONST.uuidRegExp.test(sessionData.password)) {
+        logger.error('Bad password');
+        this.close();
+      } else {
+        this.sessionData = sessionData;
+        this._sendRequest('login');
+      }
+    }
+    const onError = (error) => {
+      if (allowRetry && error.message === '404') {
+        allowRetry = false; // allow one retry with new sessionId on 404.
+        this.getSessionData(this._getSessionId(true), onSuccess, onError);
+      } else {
+        logger.error(error);
+        this.close();
+      }
+    }
     this._resetClientState();
+    this.getSessionData(this._getSessionId(), onSuccess, onError);
     if (this.onOpen) {
       this.onOpen();
     } else {
       logger.verto('Socket open');
     }
-    this._sendRequest('login');
   }
 
   _onSocketClose() {
     this._resetClientState();
-    this.sessionData = null;
     if (this.onClose) {
       this.onClose();
     } else {
@@ -195,7 +216,7 @@ export default class VertoClient {
     logger.verto('Cleaning callbacks');
     for (const requestId in this.responseCallbacks) {
       const diff = now - this.responseCallbacks[requestId].sent;
-      if (diff > CONST.requestExpiry * 1000) {
+      if (diff > this.requestExpiry) {
         expired.push(requestId);
       }
     }
@@ -206,6 +227,7 @@ export default class VertoClient {
   }
 
   _resetClientState() {
+    this.sessionData = null;
     this.isAuthing = false;
     this.isAuthed = false;
     clearTimeout(this.pingTimer);
@@ -249,6 +271,15 @@ export default class VertoClient {
     return changed;
   }
 
+  _getSessionId(expired = false) {
+    let sessionId = this._getVar('sessionId');
+    if (expired || !sessionId) {
+      sessionId = this._getUuid();
+      this._setVar('sessionId', sessionId);
+    }
+    return sessionId;
+  }
+
   _sendRequest(method, params, onSuccess, onError) {
     const request = new VertoRequest(
       this.sessionData.sessionId,
@@ -261,6 +292,14 @@ export default class VertoClient {
     );
     logger.debug('Sending request', request);
     this.socket.send(request);
+  }
+
+  _pingInterval() {
+    return Math.floor(
+      Math.random() * (
+        this.pingMaxDelay - this.pingMinDelay + 1
+      ) + this.pingMinDelay
+    );
   }
 
   _ping() {
@@ -278,18 +317,11 @@ export default class VertoClient {
       } else {
         logger.verto('Ping success');
       }
-      this.pingTimer = setTimeout(
-        this._ping.bind(this), this._pingInterval()
-      );
+      const delay = this._pingInterval();
+      logger.verto(`Waiting ${delay} before next ping`);
+      this.pingTimer = setTimeout(this._ping.bind(this), delay);
     }
     this._sendRequest('echo', {}, onSuccess, onError);
-  }
-
-  _pingInterval() {
-    return Math.floor(
-      Math.random() * (
-        CONST.pingMaxDelay - CONST.pingMinDelay + 1
-      ) + CONST.pingMinDelay);
   }
 
   _login() {
@@ -301,9 +333,9 @@ export default class VertoClient {
     const onSuccess = () => {
       this.isAuthing = false;
       this.isAuthed = true;
-      this.pingTimer = setTimeout(
-        this._ping.bind(this), this._pingInterval()
-      );
+      const delay = this._pingInterval();
+      logger.verto(`Waiting ${delay} before ping`);
+      this.pingTimer = setTimeout(this._ping.bind(this), delay);
       if (this.onLogin) {
         this.onLogin();
       } else {
