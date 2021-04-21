@@ -7,30 +7,21 @@ import logger from './logger.js';
 export default class LocalMedia {
 
   constructor() {
-    this.isPolite = null;
-    this.mediaStream = null;
+    this.stream = null;
     this.isStarting = false;
-    this.isStopped = false;
+
+    // Event handlers
+    this.onStart = null;
+    this.onStop = null;
+    this.onStartError = null;
   }
 
-  stop(onStopped) {
-    this.isStopped = true;
-    if (this.mediaStream) {
-      this._stopTracks();
-      onStopped();
-    } else if (!this.isStarting) {
-      onStopped();
-    }
-  }
-
-  start(onStarted, onStopped, onError) {
-    const onMediaSuccess = (stream) => {
-      this.isStarting = false;
-      this.mediaStream = stream;
-      if (this.isStopped) {
+  start() {
+    const onSuccess = (stream) => {
+      if (!this.isStarting) {
 
         /*
-         * This runs when media stops before getUserMedia returns.
+         * This runs when stop is called before getUserMedia returns.
          *
          * In September of 2020, there must be some kind of race condition
          * in Android Chromium (Android 10 Chrome, Android 6 Vivaldi)
@@ -50,53 +41,72 @@ export default class LocalMedia {
 
         const sleep = () => new Promise((resolve) => setTimeout(resolve, 500));
         sleep().then(() => {
-          this._stopTracks();
-          onStopped();
+          this._stopStream(stream);
         });
       } else {
-        onStarted();
+        this.isStarting = false;
+        this.stream = stream;
       }
     }
-    const onMediaError = (error) => {
+    const onError = (error) => {
       this.isStarting = false;
-      onError(error);
+      logger.error('media', error);
+      if (this.onStartError) {
+        this.onStartError(error);
+      }
     }
-    this.isStarting = true;
-    this.isStopped = false;
-    this._start(onMediaSuccess, onMediaError, true, true);
+    if (!this.stream && !this.isStarting) {
+      this.isStarting = true;
+      this._initStream(onSuccess, onError);
+    }
   }
 
-  _stopTracks() {
-    for (const track of this.mediaStream.getTracks()) {
-      track.stop();
-      logger.info('Stopped local', track.kind, 'track');
-    }
-    this.mediaStream = null;
+  stop() {
+    this.isStarting = false;
+    this._stopStream(this.stream);
+    this.stream = null;
   }
 
-  async _start(onSuccess, onError, audio, video) {
+  async _initStream(onSuccess, onError) {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       let hasAudio = false;
       let hasVideo = false;
       for (const device of devices) {
         if (device.kind.startsWith('audio')) {
-          logger.info('Found local audio device');
+          logger.debug('media', 'Found audio device');
           hasAudio = true;
         } else if (device.kind.startsWith('video')) {
-          logger.info('Found local video device');
+          logger.debug('media', 'Found video device');
           hasVideo = true;
         }
       }
-      if (audio && !hasAudio) {
-        throw new Error('No local audio devices.');
+      if (!hasAudio) {
+        throw new Error('No audio devices.');
       }
-      if (video && !hasVideo) {
-        throw new Error('No local video devices.');
+      if (!hasVideo) {
+        throw new Error('No video devices.');
       }
-      onSuccess(await navigator.mediaDevices.getUserMedia({audio, video}));
+      const contraints = {audio: true, video: true};
+      const stream = await navigator.mediaDevices.getUserMedia(contraints);
+      if (this.onStart) {
+        this.onStart(stream);
+      }
+      onSuccess(stream);
     } catch (error) {
-      onError(error.message);
+      onError(error);
+    }
+  }
+
+  _stopStream(stream) {
+    if (stream) {
+      for (const track of stream.getTracks()) {
+        track.stop();
+        logger.debug('media', 'Stopped', track.kind, 'track');
+      }
+      if (this.onStop) {
+        this.onStop(stream);
+      }
     }
   }
 }

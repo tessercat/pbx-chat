@@ -65,7 +65,7 @@ export default class VertoSocket {
       }
       if (!this.isHalted) {
         const delay = this._retryInterval();
-        logger.verto(`Waiting ${delay} after ${this.retryCount} tries`);
+        logger.debug('socket', `Waiting ${delay} after ${this.retryCount} tries`);
         this.retryTimer = setTimeout(() => {
           this.retryCount += 1;
           this.open();
@@ -93,7 +93,7 @@ export default class VertoSocket {
     if (this.socket && this.socket.readyState === 1) {
       this.socket.send(JSON.stringify(message));
     } else {
-      logger.error('Error sending', message);
+      logger.error('socket', 'Error sending', message);
     }
   }
 }

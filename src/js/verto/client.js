@@ -79,25 +79,25 @@ export default class VertoClient {
 
   subscribe() {
     const onSuccess = () => {
-      logger.verto('Subscribed');
+      logger.debug('client', 'Subscribed');
       if (this.onSub) {
         this.onSub();
       }
     }
     const onError = (error) => {
-      logger.error('Subscription error', error);
+      logger.error('client', 'Subscription error', error);
       if (this.onSubError) {
         this.onSubError(error);
       }
     }
-    logger.verto('Subscribe');
+    logger.debug('client', 'Subscribe');
     this._sendRequest('verto.subscribe', {
       eventChannel: this.channelId
     }, onSuccess, onError);
   }
 
   publish(eventData, onSuccess, onError) {
-    logger.verto('Publish', eventData);
+    logger.debug('client', 'Publish', eventData);
     const encoded = this._encode(eventData);
     if (encoded) {
       const onRequestSuccess = (message) => {
@@ -105,10 +105,10 @@ export default class VertoClient {
           if (onError) {
             onError(message);
           } else {
-            logger.error('Publish error', message);
+            logger.error('client', 'Publish error', message);
           }
         } else {
-          logger.verto('Published', message)
+          logger.debug('client', 'Published', message)
           if (onSuccess) {
             onSuccess(message);
           }
@@ -120,29 +120,36 @@ export default class VertoClient {
         eventData: encoded,
       }, onRequestSuccess, onError);
     } else {
-      logger.error('Publish encoding error', eventData);
+      logger.error('client', 'Publish encoding error', eventData);
       if (onError) {
         onError(eventData);
       }
     }
   }
 
-  sendMessage(clientId, msgData, onSuccess, onError) {
-    logger.verto('Message', clientId, msgData);
-    const encoded = this._encode(msgData);
-    if (encoded) {
-      this._sendRequest('verto.info', {
-        msg: {
-          to: clientId,
-          body: encoded
-        }
-      }, onSuccess, onError);
-    } else {
-      logger.error('Message encoding error', msgData);
-      if (onError) {
-        onError(msgData);
+  sendInvite(dest, sdpData, onSuccess, onError) {
+    logger.debug('client', 'Invite', dest);
+    const callID = this._getUuid();
+    this._sendRequest('verto.invite', {
+      sdp: sdpData,
+      dialogParams: {
+        callID: callID,
+        destination_number: dest,
+        //screenShare: true,
+        //dedEnc: true,
+        //mirrorInput: true,
+        //conferenceCanvasID: <int>,
+        //outgoingBandwidth: <bw-str>,
+        //incomingBandwidth: <bw-str>,
+        //userVariables: {},
+        //caller_id_name: <str>,
+        //remote_caller_id_number: <str>,
+        //remote_caller_id_name: <str>,
+        //ani: <str>,
+        //aniii: <str>,
+        //rdnis: <str>,
       }
-    }
+    }, onSuccess, onError);
   }
 
   // Verto socket event handlers
@@ -151,13 +158,13 @@ export default class VertoClient {
     let allowRetry = true;
     const onSuccess = (sessionData) => {
       if (sessionData.sessionId !== this._getSessionId()) {
-        logger.error('Bad sessionId', sessionData);
+        logger.error('client', 'Bad sessionId', sessionData);
         this.close();
       } else if (!CONST.uuidRegExp.test(sessionData.clientId)) {
-        logger.error('Bad clientId', sessionData);
+        logger.error('client', 'Bad clientId', sessionData);
         this.close();
       } else if (!CONST.uuidRegExp.test(sessionData.password)) {
-        logger.error('Bad password', sessionData);
+        logger.error('client', 'Bad password', sessionData);
         this.close();
       } else {
         this.sessionData = sessionData;
@@ -169,11 +176,11 @@ export default class VertoClient {
         allowRetry = false; // allow one retry with new sessionId on 404
         this.getSessionData(this._getSessionId(true), onSuccess, onError);
       } else {
-        logger.error(error);
+        logger.error('client', error);
         this.close();
       }
     }
-    logger.verto('Socket open');
+    logger.debug('client', 'Socket open');
     this._resetClientState();
     this.getSessionData(this._getSessionId(), onSuccess, onError);
     if (this.onOpen) {
@@ -182,7 +189,7 @@ export default class VertoClient {
   }
 
   _onSocketClose() {
-    logger.verto('Socket closed');
+    logger.debug('client', 'Socket closed');
     this._resetClientState();
     if (this.onClose) {
       this.onClose();
@@ -201,7 +208,7 @@ export default class VertoClient {
   // Client state helpers
 
   _cleanResponseCallbacks() {
-    logger.verto('Cleaning callbacks');
+    logger.debug('client', 'Cleaning callbacks');
     const expired = [];
     const now = new Date();
     for (const requestId in this.responseCallbacks) {
@@ -212,7 +219,7 @@ export default class VertoClient {
     }
     for (const requestId of expired) {
       delete this.responseCallbacks[requestId];
-      logger.error('Deleted callback', requestId);
+      logger.error('client', 'Deleted callback', requestId);
     }
   }
 
@@ -247,11 +254,11 @@ export default class VertoClient {
     if (value && value !== this.channelData[key]) {
       changed = true;
       this.channelData[key] = value;
-      logger.verto('Set', key);
+      logger.debug('client', 'Set', key);
     } else if (this.channelData[key] && !value) {
       changed = true;
       delete this.channelData[key];
-      logger.verto('Unset', key);
+      logger.debug('client', 'Unset', key);
     }
     if (changed) {
       localStorage.setItem(
@@ -280,7 +287,7 @@ export default class VertoClient {
     this.responseCallbacks[request.id] = new ResponseCallbacks(
       onSuccess, onError
     );
-    logger.verto('Request', request);
+    logger.debug('client', 'Request', request);
     this.socket.send(request);
   }
 
@@ -297,19 +304,19 @@ export default class VertoClient {
       if (this.onPingError) {
         this.onPingError(message);
       } else {
-        logger.error('Ping error', message);
+        logger.error('client', 'Ping error', message);
       }
     }
     const onSuccess = () => {
-      logger.verto('Ping success');
+      logger.debug('client', 'Ping success');
       if (this.onPing) {
         this.onPing();
       }
       const delay = this._pingInterval();
-      logger.verto(`Waiting ${delay} before next ping`);
+      logger.debug('client', `Waiting ${delay} before next ping`);
       this.pingTimer = setTimeout(this._ping.bind(this), delay);
     }
-    logger.verto('Ping');
+    logger.debug('client', 'Ping');
     this._cleanResponseCallbacks();
     this._sendRequest('echo', {}, onSuccess, onError);
   }
@@ -321,11 +328,11 @@ export default class VertoClient {
     this.isAuthing = true;
     this.isAuthed = false;
     const onSuccess = () => {
-      logger.verto('Logged in');
+      logger.debug('client', 'Logged in');
       this.isAuthing = false;
       this.isAuthed = true;
       const delay = this._pingInterval();
-      logger.verto(`Waiting ${delay} before ping`);
+      logger.debug('client', `Waiting ${delay} before ping`);
       this.pingTimer = setTimeout(this._ping.bind(this), delay);
       if (this.onLogin) {
         this.onLogin();
@@ -340,7 +347,7 @@ export default class VertoClient {
       if (this.onLoginError) {
         this.onLoginError(event.error.message);
       } else {
-        logger.error('Login failed', event);
+        logger.error('client', 'Login failed', event);
       }
     };
     this._sendRequest('login', {
@@ -353,7 +360,7 @@ export default class VertoClient {
 
   _handleResponse(message) {
     if (message.result) {
-      logger.verto('Response', message);
+      logger.debug('client', 'Response', message);
       const onSuccess = this.responseCallbacks[message.id].onSuccess;
       if (onSuccess) {
         onSuccess(message);
@@ -362,17 +369,17 @@ export default class VertoClient {
       if (message.error) {
         const code = parseInt(message.error.code);
         if (code === CONST.authRequired) {
-          logger.verto('Response auth required', message);
+          logger.debug('client', 'Response auth required', message);
           this._login();
         } else {
-          logger.error('Response error', message);
+          logger.error('client', 'Response error', message);
           const onError = this.responseCallbacks[message.id].onError;
           if (onError) {
             onError(message);
           }
         }
       } else {
-        logger.error('Response unhandled', message);
+        logger.error('client', 'Response unhandled', message);
       }
     }
     delete this.responseCallbacks[message.id];
@@ -380,37 +387,16 @@ export default class VertoClient {
 
   _handleEvent(event) {
     if (event.method === 'verto.clientReady') {
-      logger.verto('Client ready', event.params);
+      logger.debug('client', 'Client ready', event.params);
       if (this.onReady) {
         this.onReady(event.params);
-      }
-    } else if (event.method === 'verto.info') {
-      if (
-          event.params
-          && event.params.msg
-          && event.params.msg.to
-          && event.params.msg.from
-          && event.params.msg.body) {
-        const msg = event.params.msg;
-        const clientId = msg.to.split('@').shift();
-        const message = this._decode(msg.body);
-        if (clientId && clientId === this.sessionData.clientId) {
-          logger.verto('Message', event, message);
-          if (this.onMessage) {
-            this.onMessage(msg.from, message);
-          }
-        } else {
-          logger.error('Message other', event, message);
-        }
-      } else {
-        logger.error('Message empty', event);
       }
     } else if (event.method === 'verto.event') {
       if (
           event.params
           && event.params.sessid
           && event.params.sessid === this.sessionData.sessionId) {
-        logger.verto('Event own', event);
+        logger.debug('client', 'Event own', event);
       } else if (
           event.params
           && event.params.userid
@@ -419,24 +405,24 @@ export default class VertoClient {
         if (event.params.eventChannel === this.channelId) {
           const clientId = event.params.userid.split('@').shift();
           const eventData = this._decode(event.params.eventData);
-          logger.verto('Event', clientId, eventData);
+          logger.debug('client', 'Event', clientId, eventData);
           if (this.onEvent) {
             this.onEvent(clientId, eventData);
           }
         } else {
-          logger.error('Event other', event);
+          logger.error('client', 'Event other', event);
         }
       } else {
-        logger.error('Event unhandled', event);
+        logger.error('client', 'Event unhandled', event);
       }
     } else if (event.method === 'verto.punt') {
-      logger.verto('Punt');
+      logger.debug('client', 'Punt');
       this.close();
       if (this.onPunt) {
         this.onPunt();
       }
     } else {
-      logger.error('Unhandled', event);
+      logger.error('client', 'Unhandled', event);
     }
   }
 
@@ -459,7 +445,7 @@ export default class VertoClient {
     try {
       return JSON.parse(string);
     } catch (error) {
-      logger.error('Error parsing', string, error);
+      logger.error('client', 'Error parsing', string, error);
       return null;
     }
   }
@@ -473,7 +459,7 @@ export default class VertoClient {
         }
       ));
     } catch (error) {
-      logger.error('Error encoding', object, error);
+      logger.error('client', 'Error encoding', object, error);
       return '';
     }
   }
@@ -487,7 +473,7 @@ export default class VertoClient {
       );
       return JSON.parse(string);
     } catch (error) {
-      logger.error('Error decoding', encoded, error);
+      logger.error('client', 'Error decoding', encoded, error);
       return null;
     }
   }

@@ -5,8 +5,7 @@
 import adapter from "webrtc-adapter";
 import ConferenceClient from './client.js';
 
-document.debugLogEnabled = false;
-document.vertoLogEnabled = true;
+document.debugLogEnabled = true;
 document.infoLogEnabled = true;
 
 if (adapter.browserDetails.browser.startsWith("Not")) {
