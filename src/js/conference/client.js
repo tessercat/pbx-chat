@@ -13,6 +13,7 @@ export default class ConferenceClient {
     this.client = new VertoClient();
     this.client.getSessionData = this._getSessionData.bind(this);
     this.client.onLogin = this._startMedia.bind(this);
+    this.client.onEvent = this._onEvent.bind(this);
 
     this.localMedia = new LocalMedia();
     this.localMedia.onStart = this._onMediaStart.bind(this);
@@ -20,6 +21,9 @@ export default class ConferenceClient {
     this.peer = new VertoPeer();
     this.peer.onBundleReady = this._onPeerReady.bind(this);
     this.peer.onRemoteTrack = this._onPeerTrack.bind(this);
+
+    this.callID = this.client.newUuid();
+    this.remoteSdp = null;
   }
 
   open() {
@@ -31,6 +35,8 @@ export default class ConferenceClient {
     this.localMedia.stop();
     this.client.close();
   }
+
+  // Verto client callbacks
 
   _getSessionData(sessionId, onSuccess, onError) {
     const url = `${location.href}/session?sessionId=${sessionId}`;
@@ -47,28 +53,69 @@ export default class ConferenceClient {
     });
   }
 
-  // Local media callbacks
-
   _startMedia() {
     this.localMedia.start();
   }
+
+  _onEvent(event) {
+    if (event.method === 'verto.answer') {
+      if (this.remoteSdp) {
+        this.peer.setRemoteDescription('answer', this.remoteSdp);
+        this.remoteSdp = null;
+      }
+    } else if (event.method === 'verto.attach') {
+      this.callID = event.params.callID;
+      this.peer.setRemoteDescription('offer', event.params.sdp);
+    } else if (event.method === 'verto.clientReady') {
+      logger.info('conference', 'Client ready');
+    } else if (event.method === 'verto.media') {
+      this.remoteSdp = event.params.sdp;
+    } else {
+      logger.error('conference', 'Unhandled event', event)
+    }
+  }
+
+  // Local media callbacks
 
   _onMediaStart(stream) {
     this.peer.connect(false);
     this.peer.addTracks(stream);
   }
 
-  // RTC peer callbacks
+  // Verto peer callbacks
 
   _onPeerReady(sdpData) {
     const onSuccess = (message) => {
-      const callID = message.result.callID;
-      logger.info('conference', callID);
+      logger.info('conference', message.result.callID);
     }
-    this.client.sendInvite(this.client.channelId, sdpData, onSuccess);
+    const onError = (error) => {
+      logger.error('conference', 'Invite failed', error);
+    }
+    const dest = this.client.channelId;
+    logger.debug('client', 'Invite', dest);
+    this.client.sendRequest('verto.invite', {
+      sdp: sdpData,
+      dialogParams: {
+        callID: this.callID,
+        destination_number: dest,
+        //screenShare: true,
+        //dedEnc: true,
+        //mirrorInput: true,
+        //conferenceCanvasID: <int>,
+        //outgoingBandwidth: <bw-str>,
+        //incomingBandwidth: <bw-str>,
+        //userVariables: {},
+        //caller_id_name: <str>,
+        //remote_caller_id_number: <str>,
+        //remote_caller_id_name: <str>,
+        //ani: <str>,
+        //aniii: <str>,
+        //rdnis: <str>,
+      }
+    }, onSuccess, onError);
   }
 
   _onPeerTrack(track) {
-    logger.info('conference', track);
+    logger.info('conference', 'Add this track to the video element!', track);
   }
 }

@@ -51,14 +51,10 @@ export default class VertoClient {
     this.onClose = null;
     this.onLogin = null;
     this.onLoginError = null;
-    this.onReady = null;
-    this.onSub = null;
-    this.onSubError = null;
     this.onPing = null;
     this.onPingError = null;
     this.onPunt = null;
     this.onEvent = null;
-    this.onMessage = null;
 
     // Socket and event bindings
     this.socket = new VertoSocket();
@@ -77,79 +73,24 @@ export default class VertoClient {
     this.socket.close();
   }
 
-  subscribe() {
-    const onSuccess = () => {
-      logger.debug('client', 'Subscribed');
-      if (this.onSub) {
-        this.onSub();
-      }
-    }
-    const onError = (error) => {
-      logger.error('client', 'Subscription error', error);
-      if (this.onSubError) {
-        this.onSubError(error);
-      }
-    }
-    logger.debug('client', 'Subscribe');
-    this._sendRequest('verto.subscribe', {
-      eventChannel: this.channelId
-    }, onSuccess, onError);
+  newUuid() {
+    const url = URL.createObjectURL(new Blob());
+    URL.revokeObjectURL(url);
+    return url.split('/').pop();
   }
 
-  publish(eventData, onSuccess, onError) {
-    logger.debug('client', 'Publish', eventData);
-    const encoded = this._encode(eventData);
-    if (encoded) {
-      const onRequestSuccess = (message) => {
-        if ('code' in message.result) {
-          if (onError) {
-            onError(message);
-          } else {
-            logger.error('client', 'Publish error', message);
-          }
-        } else {
-          logger.debug('client', 'Published', message)
-          if (onSuccess) {
-            onSuccess(message);
-          }
-        }
-      }
-      this._sendRequest('verto.broadcast', {
-        localBroadcast: true,
-        eventChannel: this.channelId,
-        eventData: encoded,
-      }, onRequestSuccess, onError);
-    } else {
-      logger.error('client', 'Publish encoding error', eventData);
-      if (onError) {
-        onError(eventData);
-      }
-    }
-  }
-
-  sendInvite(dest, sdpData, onSuccess, onError) {
-    logger.debug('client', 'Invite', dest);
-    const callID = this._getUuid();
-    this._sendRequest('verto.invite', {
-      sdp: sdpData,
-      dialogParams: {
-        callID: callID,
-        destination_number: dest,
-        //screenShare: true,
-        //dedEnc: true,
-        //mirrorInput: true,
-        //conferenceCanvasID: <int>,
-        //outgoingBandwidth: <bw-str>,
-        //incomingBandwidth: <bw-str>,
-        //userVariables: {},
-        //caller_id_name: <str>,
-        //remote_caller_id_number: <str>,
-        //remote_caller_id_name: <str>,
-        //ani: <str>,
-        //aniii: <str>,
-        //rdnis: <str>,
-      }
-    }, onSuccess, onError);
+  sendRequest(method, params, onSuccess, onError) {
+    const request = new VertoRequest(
+      this.sessionData.sessionId,
+      this.newUuid(),
+      method,
+      params
+    );
+    this.responseCallbacks[request.id] = new ResponseCallbacks(
+      onSuccess, onError
+    );
+    logger.debug('client', 'Request', request);
+    this.socket.send(request);
   }
 
   // Verto socket event handlers
@@ -168,7 +109,7 @@ export default class VertoClient {
         this.close();
       } else {
         this.sessionData = sessionData;
-        this._sendRequest('login');
+        this.sendRequest('login');
       }
     }
     const onError = (error) => {
@@ -176,7 +117,7 @@ export default class VertoClient {
         allowRetry = false; // allow one retry with new sessionId on 404
         this.getSessionData(this._getSessionId(true), onSuccess, onError);
       } else {
-        logger.error('client', error);
+        logger.error('client', 'Session data error', error);
         this.close();
       }
     }
@@ -197,7 +138,13 @@ export default class VertoClient {
   }
 
   _onSocketMessage(event) {
-    const message = this._parse(event.data);
+    let message = null;
+    try {
+      message = JSON.parse(event.data);
+    } catch (error) {
+      logger.error('client', 'Event data parse error', event, error);
+      return null;
+    }
     if (this.responseCallbacks[message.id]) {
       this._handleResponse(message);
     } else {
@@ -239,12 +186,6 @@ export default class VertoClient {
     return {};
   }
 
-  _getUuid() {
-    const url = URL.createObjectURL(new Blob());
-    URL.revokeObjectURL(url);
-    return url.split('/').pop();
-  }
-
   _getVar(key) {
     return this.channelData[key] || null;
   }
@@ -271,24 +212,10 @@ export default class VertoClient {
   _getSessionId(expired = false) {
     let sessionId = this._getVar('sessionId');
     if (expired || !sessionId) {
-      sessionId = this._getUuid();
+      sessionId = this.newUuid();
       this._setVar('sessionId', sessionId);
     }
     return sessionId;
-  }
-
-  _sendRequest(method, params, onSuccess, onError) {
-    const request = new VertoRequest(
-      this.sessionData.sessionId,
-      this._getUuid(),
-      method,
-      params
-    );
-    this.responseCallbacks[request.id] = new ResponseCallbacks(
-      onSuccess, onError
-    );
-    logger.debug('client', 'Request', request);
-    this.socket.send(request);
   }
 
   _pingInterval() {
@@ -318,7 +245,7 @@ export default class VertoClient {
     }
     logger.debug('client', 'Ping');
     this._cleanResponseCallbacks();
-    this._sendRequest('echo', {}, onSuccess, onError);
+    this.sendRequest('echo', {}, onSuccess, onError);
   }
 
   _login() {
@@ -350,7 +277,7 @@ export default class VertoClient {
         logger.error('client', 'Login failed', event);
       }
     };
-    this._sendRequest('login', {
+    this.sendRequest('login', {
       login: this.sessionData.clientId,
       passwd: this.sessionData.password
     }, onSuccess, onError);
@@ -386,95 +313,16 @@ export default class VertoClient {
   }
 
   _handleEvent(event) {
-    if (event.method === 'verto.clientReady') {
-      logger.debug('client', 'Client ready', event.params);
-      if (this.onReady) {
-        this.onReady(event.params);
-      }
-    } else if (event.method === 'verto.event') {
-      if (
-          event.params
-          && event.params.sessid
-          && event.params.sessid === this.sessionData.sessionId) {
-        logger.debug('client', 'Event own', event);
-      } else if (
-          event.params
-          && event.params.userid
-          && event.params.eventChannel
-          && event.params.eventData) {
-        if (event.params.eventChannel === this.channelId) {
-          const clientId = event.params.userid.split('@').shift();
-          const eventData = this._decode(event.params.eventData);
-          logger.debug('client', 'Event', clientId, eventData);
-          if (this.onEvent) {
-            this.onEvent(clientId, eventData);
-          }
-        } else {
-          logger.error('client', 'Event other', event);
-        }
-      } else {
-        logger.error('client', 'Event unhandled', event);
-      }
-    } else if (event.method === 'verto.punt') {
+    if (event.method === 'verto.punt') {
       logger.debug('client', 'Punt');
       this.close();
       if (this.onPunt) {
         this.onPunt();
       }
     } else {
-      logger.error('client', 'Unhandled', event);
-    }
-  }
-
-  // Event and message data processing helpers.
-
-  /*
-   * These methods eat exceptions.
-   *
-   * Parsing takes a stringified object as input and returns the object,
-   * or null on error.
-   *
-   * Encoding takes an object as input and returns a Base64-encoded JSON
-   * string, or an empty string on error.
-   *
-   * Decoding takes a Base64-encoded stringified object as input, decodes
-   * it and returns the object, or null on error.
-   */
-
-  _parse(string) {
-    try {
-      return JSON.parse(string);
-    } catch (error) {
-      logger.error('client', 'Error parsing', string, error);
-      return null;
-    }
-  }
-
-  _encode(object) {
-    try {
-      const string = JSON.stringify(object);
-      return btoa(encodeURIComponent(string).replace(
-        /%([0-9A-F]{2})/g, (match, p1) => {
-          return String.fromCharCode('0x' + p1);
-        }
-      ));
-    } catch (error) {
-      logger.error('client', 'Error encoding', object, error);
-      return '';
-    }
-  }
-
-  _decode(encoded) {
-    try {
-      const string = decodeURIComponent(
-        atob(encoded).split('').map((c) => {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join('')
-      );
-      return JSON.parse(string);
-    } catch (error) {
-      logger.error('client', 'Error decoding', encoded, error);
-      return null;
+      if (this.onEvent) {
+        this.onEvent(event);
+      }
     }
   }
 }

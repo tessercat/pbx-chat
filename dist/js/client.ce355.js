@@ -115,6 +115,7 @@ class ConferenceClient {
     this.client = new _verto_client_js__WEBPACK_IMPORTED_MODULE_2__["default"]();
     this.client.getSessionData = this._getSessionData.bind(this);
     this.client.onLogin = this._startMedia.bind(this);
+    this.client.onEvent = this._onEvent.bind(this);
 
     this.localMedia = new _local_media_js__WEBPACK_IMPORTED_MODULE_1__["default"]();
     this.localMedia.onStart = this._onMediaStart.bind(this);
@@ -122,6 +123,9 @@ class ConferenceClient {
     this.peer = new _verto_peer_js__WEBPACK_IMPORTED_MODULE_3__["default"]();
     this.peer.onBundleReady = this._onPeerReady.bind(this);
     this.peer.onRemoteTrack = this._onPeerTrack.bind(this);
+
+    this.callID = this.client.newUuid();
+    this.remoteSdp = null;
   }
 
   open() {
@@ -133,6 +137,8 @@ class ConferenceClient {
     this.localMedia.stop();
     this.client.close();
   }
+
+  // Verto client callbacks
 
   _getSessionData(sessionId, onSuccess, onError) {
     const url = `${location.href}/session?sessionId=${sessionId}`;
@@ -149,29 +155,70 @@ class ConferenceClient {
     });
   }
 
-  // Local media callbacks
-
   _startMedia() {
     this.localMedia.start();
   }
+
+  _onEvent(event) {
+    if (event.method === 'verto.answer') {
+      if (this.remoteSdp) {
+        this.peer.setRemoteDescription('answer', this.remoteSdp);
+        this.remoteSdp = null;
+      }
+    } else if (event.method === 'verto.attach') {
+      this.callID = event.params.callID;
+      this.peer.setRemoteDescription('offer', event.params.sdp);
+    } else if (event.method === 'verto.clientReady') {
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].info('conference', 'Client ready');
+    } else if (event.method === 'verto.media') {
+      this.remoteSdp = event.params.sdp;
+    } else {
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('conference', 'Unhandled event', event)
+    }
+  }
+
+  // Local media callbacks
 
   _onMediaStart(stream) {
     this.peer.connect(false);
     this.peer.addTracks(stream);
   }
 
-  // RTC peer callbacks
+  // Verto peer callbacks
 
   _onPeerReady(sdpData) {
     const onSuccess = (message) => {
-      const callID = message.result.callID;
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].info('conference', callID);
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].info('conference', message.result.callID);
     }
-    this.client.sendInvite(this.client.channelId, sdpData, onSuccess);
+    const onError = (error) => {
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('conference', 'Invite failed', error);
+    }
+    const dest = this.client.channelId;
+    _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('client', 'Invite', dest);
+    this.client.sendRequest('verto.invite', {
+      sdp: sdpData,
+      dialogParams: {
+        callID: this.callID,
+        destination_number: dest,
+        //screenShare: true,
+        //dedEnc: true,
+        //mirrorInput: true,
+        //conferenceCanvasID: <int>,
+        //outgoingBandwidth: <bw-str>,
+        //incomingBandwidth: <bw-str>,
+        //userVariables: {},
+        //caller_id_name: <str>,
+        //remote_caller_id_number: <str>,
+        //remote_caller_id_name: <str>,
+        //ani: <str>,
+        //aniii: <str>,
+        //rdnis: <str>,
+      }
+    }, onSuccess, onError);
   }
 
   _onPeerTrack(track) {
-    _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].info('conference', track);
+    _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].info('conference', 'Add this track to the video element!', track);
   }
 }
 
@@ -450,14 +497,10 @@ class VertoClient {
     this.onClose = null;
     this.onLogin = null;
     this.onLoginError = null;
-    this.onReady = null;
-    this.onSub = null;
-    this.onSubError = null;
     this.onPing = null;
     this.onPingError = null;
     this.onPunt = null;
     this.onEvent = null;
-    this.onMessage = null;
 
     // Socket and event bindings
     this.socket = new _socket_js__WEBPACK_IMPORTED_MODULE_0__["default"]();
@@ -476,79 +519,24 @@ class VertoClient {
     this.socket.close();
   }
 
-  subscribe() {
-    const onSuccess = () => {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Subscribed');
-      if (this.onSub) {
-        this.onSub();
-      }
-    }
-    const onError = (error) => {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Subscription error', error);
-      if (this.onSubError) {
-        this.onSubError(error);
-      }
-    }
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Subscribe');
-    this._sendRequest('verto.subscribe', {
-      eventChannel: this.channelId
-    }, onSuccess, onError);
+  newUuid() {
+    const url = URL.createObjectURL(new Blob());
+    URL.revokeObjectURL(url);
+    return url.split('/').pop();
   }
 
-  publish(eventData, onSuccess, onError) {
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Publish', eventData);
-    const encoded = this._encode(eventData);
-    if (encoded) {
-      const onRequestSuccess = (message) => {
-        if ('code' in message.result) {
-          if (onError) {
-            onError(message);
-          } else {
-            _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Publish error', message);
-          }
-        } else {
-          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Published', message)
-          if (onSuccess) {
-            onSuccess(message);
-          }
-        }
-      }
-      this._sendRequest('verto.broadcast', {
-        localBroadcast: true,
-        eventChannel: this.channelId,
-        eventData: encoded,
-      }, onRequestSuccess, onError);
-    } else {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Publish encoding error', eventData);
-      if (onError) {
-        onError(eventData);
-      }
-    }
-  }
-
-  sendInvite(dest, sdpData, onSuccess, onError) {
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Invite', dest);
-    const callID = this._getUuid();
-    this._sendRequest('verto.invite', {
-      sdp: sdpData,
-      dialogParams: {
-        callID: callID,
-        destination_number: dest,
-        //screenShare: true,
-        //dedEnc: true,
-        //mirrorInput: true,
-        //conferenceCanvasID: <int>,
-        //outgoingBandwidth: <bw-str>,
-        //incomingBandwidth: <bw-str>,
-        //userVariables: {},
-        //caller_id_name: <str>,
-        //remote_caller_id_number: <str>,
-        //remote_caller_id_name: <str>,
-        //ani: <str>,
-        //aniii: <str>,
-        //rdnis: <str>,
-      }
-    }, onSuccess, onError);
+  sendRequest(method, params, onSuccess, onError) {
+    const request = new VertoRequest(
+      this.sessionData.sessionId,
+      this.newUuid(),
+      method,
+      params
+    );
+    this.responseCallbacks[request.id] = new ResponseCallbacks(
+      onSuccess, onError
+    );
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Request', request);
+    this.socket.send(request);
   }
 
   // Verto socket event handlers
@@ -567,7 +555,7 @@ class VertoClient {
         this.close();
       } else {
         this.sessionData = sessionData;
-        this._sendRequest('login');
+        this.sendRequest('login');
       }
     }
     const onError = (error) => {
@@ -575,7 +563,7 @@ class VertoClient {
         allowRetry = false; // allow one retry with new sessionId on 404
         this.getSessionData(this._getSessionId(true), onSuccess, onError);
       } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', error);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Session data error', error);
         this.close();
       }
     }
@@ -596,7 +584,13 @@ class VertoClient {
   }
 
   _onSocketMessage(event) {
-    const message = this._parse(event.data);
+    let message = null;
+    try {
+      message = JSON.parse(event.data);
+    } catch (error) {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Event data parse error', event, error);
+      return null;
+    }
     if (this.responseCallbacks[message.id]) {
       this._handleResponse(message);
     } else {
@@ -638,12 +632,6 @@ class VertoClient {
     return {};
   }
 
-  _getUuid() {
-    const url = URL.createObjectURL(new Blob());
-    URL.revokeObjectURL(url);
-    return url.split('/').pop();
-  }
-
   _getVar(key) {
     return this.channelData[key] || null;
   }
@@ -670,24 +658,10 @@ class VertoClient {
   _getSessionId(expired = false) {
     let sessionId = this._getVar('sessionId');
     if (expired || !sessionId) {
-      sessionId = this._getUuid();
+      sessionId = this.newUuid();
       this._setVar('sessionId', sessionId);
     }
     return sessionId;
-  }
-
-  _sendRequest(method, params, onSuccess, onError) {
-    const request = new VertoRequest(
-      this.sessionData.sessionId,
-      this._getUuid(),
-      method,
-      params
-    );
-    this.responseCallbacks[request.id] = new ResponseCallbacks(
-      onSuccess, onError
-    );
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Request', request);
-    this.socket.send(request);
   }
 
   _pingInterval() {
@@ -717,7 +691,7 @@ class VertoClient {
     }
     _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Ping');
     this._cleanResponseCallbacks();
-    this._sendRequest('echo', {}, onSuccess, onError);
+    this.sendRequest('echo', {}, onSuccess, onError);
   }
 
   _login() {
@@ -749,7 +723,7 @@ class VertoClient {
         _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Login failed', event);
       }
     };
-    this._sendRequest('login', {
+    this.sendRequest('login', {
       login: this.sessionData.clientId,
       passwd: this.sessionData.password
     }, onSuccess, onError);
@@ -785,95 +759,16 @@ class VertoClient {
   }
 
   _handleEvent(event) {
-    if (event.method === 'verto.clientReady') {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Client ready', event.params);
-      if (this.onReady) {
-        this.onReady(event.params);
-      }
-    } else if (event.method === 'verto.event') {
-      if (
-          event.params
-          && event.params.sessid
-          && event.params.sessid === this.sessionData.sessionId) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Event own', event);
-      } else if (
-          event.params
-          && event.params.userid
-          && event.params.eventChannel
-          && event.params.eventData) {
-        if (event.params.eventChannel === this.channelId) {
-          const clientId = event.params.userid.split('@').shift();
-          const eventData = this._decode(event.params.eventData);
-          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Event', clientId, eventData);
-          if (this.onEvent) {
-            this.onEvent(clientId, eventData);
-          }
-        } else {
-          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Event other', event);
-        }
-      } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Event unhandled', event);
-      }
-    } else if (event.method === 'verto.punt') {
+    if (event.method === 'verto.punt') {
       _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Punt');
       this.close();
       if (this.onPunt) {
         this.onPunt();
       }
     } else {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Unhandled', event);
-    }
-  }
-
-  // Event and message data processing helpers.
-
-  /*
-   * These methods eat exceptions.
-   *
-   * Parsing takes a stringified object as input and returns the object,
-   * or null on error.
-   *
-   * Encoding takes an object as input and returns a Base64-encoded JSON
-   * string, or an empty string on error.
-   *
-   * Decoding takes a Base64-encoded stringified object as input, decodes
-   * it and returns the object, or null on error.
-   */
-
-  _parse(string) {
-    try {
-      return JSON.parse(string);
-    } catch (error) {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Error parsing', string, error);
-      return null;
-    }
-  }
-
-  _encode(object) {
-    try {
-      const string = JSON.stringify(object);
-      return btoa(encodeURIComponent(string).replace(
-        /%([0-9A-F]{2})/g, (match, p1) => {
-          return String.fromCharCode('0x' + p1);
-        }
-      ));
-    } catch (error) {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Error encoding', object, error);
-      return '';
-    }
-  }
-
-  _decode(encoded) {
-    try {
-      const string = decodeURIComponent(
-        atob(encoded).split('').map((c) => {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join('')
-      );
-      return JSON.parse(string);
-    } catch (error) {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Error decoding', encoded, error);
-      return null;
+      if (this.onEvent) {
+        this.onEvent(event);
+      }
     }
   }
 }
@@ -952,7 +847,7 @@ class VertoPeer {
     const pc = new RTCPeerConnection(config);
     pc.ontrack = (event) => {
       if (event.track) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Receiving remote', event.track);
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Receiving media', event.track);
         if (this.onRemoteTrack) {
           this.onRemoteTrack(event.track);
         }
@@ -1021,18 +916,18 @@ class VertoPeer {
 
   // Inbound signal handlers.
 
-  async handleIceData(iceData) {
+  async addIceCandidate(candidate) {
     try {
-      await this.pc.addIceCandidate(iceData);
+      await this.pc.addIceCandidate(candidate);
     } catch (error) {
       if (!this.isIgnoringOffers) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('Received bad ICE data', iceData);
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('Received bad ICE data', candidate);
       }
     }
   }
 
-  async handleSdpOffer(offerData, onAnswer) {
-    const sdp = new RTCSessionDescription(offerData);
+  async setRemoteDescription(type, sdpString, onAnswer) {
+    const sdp = new RTCSessionDescription({type: type, sdp: sdpString});
     const isOfferCollision = (
       sdp.type === 'offer'
       && (this.isOffering || this.pc.signalingState !== 'stable')

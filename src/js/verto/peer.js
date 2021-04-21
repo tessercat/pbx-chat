@@ -58,7 +58,7 @@ export default class VertoPeer {
     const pc = new RTCPeerConnection(config);
     pc.ontrack = (event) => {
       if (event.track) {
-        logger.debug('peer', 'Receiving remote', event.track);
+        logger.debug('peer', 'Receiving media', event.track);
         if (this.onRemoteTrack) {
           this.onRemoteTrack(event.track);
         }
@@ -127,18 +127,18 @@ export default class VertoPeer {
 
   // Inbound signal handlers.
 
-  async handleIceData(iceData) {
+  async addIceCandidate(candidate) {
     try {
-      await this.pc.addIceCandidate(iceData);
+      await this.pc.addIceCandidate(candidate);
     } catch (error) {
       if (!this.isIgnoringOffers) {
-        logger.error('Received bad ICE data', iceData);
+        logger.error('Received bad ICE data', candidate);
       }
     }
   }
 
-  async handleSdpOffer(offerData, onAnswer) {
-    const sdp = new RTCSessionDescription(offerData);
+  async setRemoteDescription(type, sdpString, onAnswer) {
+    const sdp = new RTCSessionDescription({type: type, sdp: sdpString});
     const isOfferCollision = (
       sdp.type === 'offer'
       && (this.isOffering || this.pc.signalingState !== 'stable')
