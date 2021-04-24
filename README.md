@@ -32,3 +32,20 @@ Start a new terminal and:
     npm update
     npm rebuild
     npx browserslist@latest --update-db
+
+## Reset
+
+    mv package.json package.json.old
+    mv package-lock.json package-lock.json.old
+    npm init
+
+    npm install --save-dev eslint
+    npm install --save-dev webpack webpack-cli clean-webpack-plugin compression-webpack-plugin
+    npm install --save-dev node-sass postcss postcss-cli postcss-hash autoprefixer
+    npm install --save-dev rimraf gzip-cli
+
+    npm install --save-dev copy-webpack-plugin
+    npm install --save-dev webrtc-adapter
+
+    npm update
+    npm run build

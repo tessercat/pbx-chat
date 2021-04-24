@@ -6,7 +6,8 @@ import logger from '../logger.js';
 
 export default class VertoSocket {
 
-  constructor() {
+  constructor(wssUrl) {
+    this.wssUrl = wssUrl;
     this.socket = null;
     this.isOpening = false;
     this.isHalted = true;
@@ -46,7 +47,7 @@ export default class VertoSocket {
     this.isOpening = true;
     this.isHalted = false;
     clearTimeout(this.retryTimer);
-    const socket = new WebSocket(`wss://${location.host}/verto`);
+    const socket = new WebSocket(this.wssUrl);
     socket.onopen = () => {
       if (this.isOpening) {
         this.isOpening = false;

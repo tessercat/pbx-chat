@@ -29,8 +29,8 @@ class ResponseCallbacks {
 
 export default class VertoClient {
 
-  constructor() {
-    this.channelId = location.pathname.split('/').pop();
+  constructor(wssUrl, channelId) {
+    this.channelId = channelId;
     this.channelData = this._getChannelData();
     this.sessionData = null;
 
@@ -57,7 +57,7 @@ export default class VertoClient {
     this.onEvent = null;
 
     // Socket and event bindings
-    this.socket = new VertoSocket();
+    this.socket = new VertoSocket(wssUrl);
     this.socket.onOpen = this._onSocketOpen.bind(this);
     this.socket.onClose = this._onSocketClose.bind(this);
     this.socket.onMessage = this._onSocketMessage.bind(this);
@@ -320,6 +320,7 @@ export default class VertoClient {
         this.onPunt();
       }
     } else {
+      logger.debug('client', 'Event', event);
       if (this.onEvent) {
         this.onEvent(event);
       }

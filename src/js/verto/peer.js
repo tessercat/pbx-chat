@@ -6,9 +6,10 @@ import logger from '../logger.js';
 
 export default class VertoPeer {
 
-  constructor() {
+  constructor(stunUrl, isPolite) {
+    this.stunUrl = stunUrl;
+    this.isPolite = isPolite;
     this.pc = null;
-    this.isPolite = false;
     this.isOffering = false;
     this.isIgnoringOffers = false;
 
@@ -22,10 +23,9 @@ export default class VertoPeer {
     this.onRemoteTrack = null;
   }
 
-  connect(isPolite) {
+  init() {
     if (!this.pc) {
-      this.pc = this._getConnection();
-      this.isPolite = isPolite;
+      this.pc = this._newConnection();
       this.isOffering = false;
       this.isIgnoringOffers = false;
     }
@@ -45,13 +45,9 @@ export default class VertoPeer {
     }
   }
 
-  _getConnection() {
+  _newConnection() {
     const config = {
-      iceServers: [
-        {
-          urls: `stun:${location.host}:${document.getElementById('stun-port').value}`
-        }
-      ],
+      iceServers: [{urls: this.stunUrl}],
       bundlePolicy: 'max-compat',
       sdpSemantics: 'plan-b',
     }
@@ -76,7 +72,7 @@ export default class VertoPeer {
     pc.onicegatheringstatechange = async () => {
       if (pc.iceGatheringState === 'complete' && pc.localDescription) {
         const sdp = pc.localDescription.toJSON();
-        logger.debug('peer', 'Ready', sdp)
+        logger.debug('peer', 'Bundle ready', sdp)
         if (this.onBundleReady) {
           this.onBundleReady(sdp.sdp);
         }
@@ -145,7 +141,7 @@ export default class VertoPeer {
     );
     this.isIgnoringOffers = !this.isPolite && isOfferCollision;
     if (this.isIgnoringOffers) {
-      logger.debug('rpt', 'Ignored offer', sdp);
+      logger.debug('peer', 'Ignored offer', sdp);
       return;
     }
     if (isOfferCollision) {
@@ -158,12 +154,12 @@ export default class VertoPeer {
       logger.debug('rtp', 'Rolled back offer');
     } else {
       await this.pc.setRemoteDescription(sdp);
-      logger.debug('rpt', 'Accepted offer', sdp);
+      logger.debug('peer', 'Accepted offer', sdp);
     }
     if (sdp.type === 'offer') {
       await this.pc.setLocalDescription(await this.pc.createAnswer());
       const sdp = this.pc.localDescription.toJSON();
-      logger.debug('rpt', 'Sending answer', sdp);
+      logger.debug('peer', 'Sending answer', sdp);
       if (onAnswer) {
         onAnswer(sdp);
       }

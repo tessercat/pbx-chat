@@ -1,13 +1,13 @@
 const path = require("path");
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const CompressionPlugin = require("compression-webpack-plugin");
 const CopyPlugin = require("copy-webpack-plugin");
-const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 
 module.exports = {
   mode: "development",
   devtool: false,
   entry: {
-    main: path.resolve(__dirname, 'src/js/conference/index.js'),
+    main: path.resolve(__dirname, 'src/js/client/index.js'),
   },
   output: {
     path: path.resolve(__dirname, 'dist/js'),

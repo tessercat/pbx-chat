@@ -16,7 +16,7 @@ export default class LocalMedia {
     this.onStartError = null;
   }
 
-  start() {
+  start(audio = true, video = false) {
     const onSuccess = (stream) => {
       if (!this.isStarting) {
 
@@ -57,7 +57,7 @@ export default class LocalMedia {
     }
     if (!this.stream && !this.isStarting) {
       this.isStarting = true;
-      this._initStream(onSuccess, onError);
+      this._initStream(audio, video, onSuccess, onError);
     }
   }
 
@@ -67,7 +67,7 @@ export default class LocalMedia {
     this.stream = null;
   }
 
-  async _initStream(onSuccess, onError) {
+  async _initStream(audio, video, onSuccess, onError) {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       let hasAudio = false;
@@ -81,14 +81,14 @@ export default class LocalMedia {
           hasVideo = true;
         }
       }
-      if (!hasAudio) {
+      if (audio && !hasAudio) {
         throw new Error('No audio devices.');
       }
-      if (!hasVideo) {
+      if (video && !hasVideo) {
         throw new Error('No video devices.');
       }
-      const contraints = {audio: true, video: true};
-      const stream = await navigator.mediaDevices.getUserMedia(contraints);
+      const constraints = {audio, video};
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       if (this.onStart) {
         this.onStart(stream);
       }

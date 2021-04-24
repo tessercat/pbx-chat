@@ -1,101 +1,17 @@
-/******/ (function(modules) { // webpackBootstrap
-/******/ 	// The module cache
-/******/ 	var installedModules = {};
-/******/
-/******/ 	// The require function
-/******/ 	function __webpack_require__(moduleId) {
-/******/
-/******/ 		// Check if module is in cache
-/******/ 		if(installedModules[moduleId]) {
-/******/ 			return installedModules[moduleId].exports;
-/******/ 		}
-/******/ 		// Create a new module (and put it into the cache)
-/******/ 		var module = installedModules[moduleId] = {
-/******/ 			i: moduleId,
-/******/ 			l: false,
-/******/ 			exports: {}
-/******/ 		};
-/******/
-/******/ 		// Execute the module function
-/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
-/******/
-/******/ 		// Flag the module as loaded
-/******/ 		module.l = true;
-/******/
-/******/ 		// Return the exports of the module
-/******/ 		return module.exports;
-/******/ 	}
-/******/
-/******/
-/******/ 	// expose the modules object (__webpack_modules__)
-/******/ 	__webpack_require__.m = modules;
-/******/
-/******/ 	// expose the module cache
-/******/ 	__webpack_require__.c = installedModules;
-/******/
-/******/ 	// define getter function for harmony exports
-/******/ 	__webpack_require__.d = function(exports, name, getter) {
-/******/ 		if(!__webpack_require__.o(exports, name)) {
-/******/ 			Object.defineProperty(exports, name, { enumerable: true, get: getter });
-/******/ 		}
-/******/ 	};
-/******/
-/******/ 	// define __esModule on exports
-/******/ 	__webpack_require__.r = function(exports) {
-/******/ 		if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
-/******/ 			Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-/******/ 		}
-/******/ 		Object.defineProperty(exports, '__esModule', { value: true });
-/******/ 	};
-/******/
-/******/ 	// create a fake namespace object
-/******/ 	// mode & 1: value is a module id, require it
-/******/ 	// mode & 2: merge all properties of value into the ns
-/******/ 	// mode & 4: return value when already ns object
-/******/ 	// mode & 8|1: behave like require
-/******/ 	__webpack_require__.t = function(value, mode) {
-/******/ 		if(mode & 1) value = __webpack_require__(value);
-/******/ 		if(mode & 8) return value;
-/******/ 		if((mode & 4) && typeof value === 'object' && value && value.__esModule) return value;
-/******/ 		var ns = Object.create(null);
-/******/ 		__webpack_require__.r(ns);
-/******/ 		Object.defineProperty(ns, 'default', { enumerable: true, value: value });
-/******/ 		if(mode & 2 && typeof value != 'string') for(var key in value) __webpack_require__.d(ns, key, function(key) { return value[key]; }.bind(null, key));
-/******/ 		return ns;
-/******/ 	};
-/******/
-/******/ 	// getDefaultExport function for compatibility with non-harmony modules
-/******/ 	__webpack_require__.n = function(module) {
-/******/ 		var getter = module && module.__esModule ?
-/******/ 			function getDefault() { return module['default']; } :
-/******/ 			function getModuleExports() { return module; };
-/******/ 		__webpack_require__.d(getter, 'a', getter);
-/******/ 		return getter;
-/******/ 	};
-/******/
-/******/ 	// Object.prototype.hasOwnProperty.call
-/******/ 	__webpack_require__.o = function(object, property) { return Object.prototype.hasOwnProperty.call(object, property); };
-/******/
-/******/ 	// __webpack_public_path__
-/******/ 	__webpack_require__.p = "";
-/******/
-/******/
-/******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = "./src/js/conference/index.js");
-/******/ })
-/************************************************************************/
-/******/ ({
+/******/ (() => { // webpackBootstrap
+/******/ 	"use strict";
+/******/ 	var __webpack_modules__ = ({
 
-/***/ "./src/js/conference/client.js":
-/*!*************************************!*\
-  !*** ./src/js/conference/client.js ***!
-  \*************************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ "./src/js/client/client.js":
+/*!*********************************!*\
+  !*** ./src/js/client/client.js ***!
+  \*********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return ConferenceClient; });
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ VertoActionClient)
+/* harmony export */ });
 /* harmony import */ var _logger_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../logger.js */ "./src/js/logger.js");
 /* harmony import */ var _local_media_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../local-media.js */ "./src/js/local-media.js");
 /* harmony import */ var _verto_client_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../verto/client.js */ "./src/js/verto/client.js");
@@ -109,33 +25,62 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-class ConferenceClient {
+class VertoActionClient {
 
   constructor() {
-    this.client = new _verto_client_js__WEBPACK_IMPORTED_MODULE_2__["default"]();
-    this.client.getSessionData = this._getSessionData.bind(this);
-    this.client.onLogin = this._startMedia.bind(this);
-    this.client.onEvent = this._onEvent.bind(this);
 
-    this.localMedia = new _local_media_js__WEBPACK_IMPORTED_MODULE_1__["default"]();
+    const wssUrl = `wss://${location.host}/verto`
+    this.channelId = location.pathname.split('/').pop();
+    this.client = new _verto_client_js__WEBPACK_IMPORTED_MODULE_2__.default(wssUrl, this.channelId);
+    this.client.getSessionData = this._getSessionData.bind(this);
+    this.client.onEvent = this._onEvent.bind(this);
+    this.client.onLoginError = this.close.bind(this);
+
+    this.audio = document.getElementById('audio');
+    this.video = document.getElementById('video');
+
+    this.localMedia = new _local_media_js__WEBPACK_IMPORTED_MODULE_1__.default();
     this.localMedia.onStart = this._onMediaStart.bind(this);
 
-    this.peer = new _verto_peer_js__WEBPACK_IMPORTED_MODULE_3__["default"]();
-    this.peer.onBundleReady = this._onPeerReady.bind(this);
+    const stunPort = document.getElementById('stun-port').value
+    const stunUrl = `stun:${location.host}:${stunPort}`
+    this.peer = new _verto_peer_js__WEBPACK_IMPORTED_MODULE_3__.default(stunUrl, false);
+    this.peer.onBundleReady = this._onBundleReady.bind(this);
     this.peer.onRemoteTrack = this._onPeerTrack.bind(this);
 
-    this.callID = this.client.newUuid();
+    this.callID = null;
     this.remoteSdp = null;
   }
 
   open() {
-    this.client.open();
+    if (this.audio) {
+      this.localMedia.start(true, false);
+    } else if (this.video) {
+      this.localMedia.start(true, true);
+    }
   }
 
   close() {
+    if (this.audio) {
+      if (this.audio.srcObject) {
+        for (const track of this.audio.srcObject.getTracks()) {
+          track.stop();
+        }
+        this.audio.srcObject = null;
+      }
+    } else if (this.video) {
+      this.video.style.display = 'none';
+      if (this.video.srcObject) {
+        for (const track of this.video.srcObject.getTracks()) {
+          track.stop();
+        }
+        this.video.srcObject = null;
+      }
+    }
     this.peer.close();
     this.localMedia.stop();
     this.client.close();
+    this.callID = null;
   }
 
   // Verto client callbacks
@@ -151,12 +96,9 @@ class ConferenceClient {
     }).then(sessionData => {
       onSuccess(sessionData);
     }).catch(error => {
+      this.close();
       onError(error);
     });
-  }
-
-  _startMedia() {
-    this.localMedia.start();
   }
 
   _onEvent(event) {
@@ -167,39 +109,49 @@ class ConferenceClient {
       }
     } else if (event.method === 'verto.attach') {
       this.callID = event.params.callID;
-      this.peer.setRemoteDescription('offer', event.params.sdp);
+      this.remoteSdp = event.params.sdp;
     } else if (event.method === 'verto.clientReady') {
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].info('conference', 'Client ready');
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.info('channel', 'Client ready');
+      this.peer.init();
+      this.peer.addTracks(this.localMedia.stream);
+      if (this.remoteSdp) {
+        this.peer.setRemoteDescription('offer', this.remoteSdp);
+        this.remoteSdp = null;
+      }
     } else if (event.method === 'verto.media') {
       this.remoteSdp = event.params.sdp;
     } else {
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('conference', 'Unhandled event', event)
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.error('channel', 'Unhandled event', event)
     }
   }
 
   // Local media callbacks
 
-  _onMediaStart(stream) {
-    this.peer.connect(false);
-    this.peer.addTracks(stream);
+  _onMediaStart() {
+    this.client.open();
   }
 
   // Verto peer callbacks
 
-  _onPeerReady(sdpData) {
+  _onBundleReady(sdpData) {
     const onSuccess = (message) => {
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].info('conference', message.result.callID);
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.info('channel', 'Bundle sent', message.result);
     }
     const onError = (error) => {
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('conference', 'Invite failed', error);
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.error('channel', 'Invite failed', error);
     }
-    const dest = this.client.channelId;
-    _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('client', 'Invite', dest);
-    this.client.sendRequest('verto.invite', {
+    let method = null;
+    if (this.callID) {
+      method = 'verto.attach'
+    } else {
+      this.callID = this.client.newUuid();
+      method = 'verto.invite'
+    }
+    this.client.sendRequest(method, {
       sdp: sdpData,
       dialogParams: {
         callID: this.callID,
-        destination_number: dest,
+        destination_number: this.client.channelId,
         //screenShare: true,
         //dedEnc: true,
         //mirrorInput: true,
@@ -218,51 +170,13 @@ class ConferenceClient {
   }
 
   _onPeerTrack(track) {
-    _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].info('conference', 'Add this track to the video element!', track);
-  }
-}
-
-
-/***/ }),
-
-/***/ "./src/js/conference/index.js":
-/*!************************************!*\
-  !*** ./src/js/conference/index.js ***!
-  \************************************/
-/*! no exports provided */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony import */ var webrtc_adapter__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webrtc-adapter */ "webrtc-adapter");
-/* harmony import */ var webrtc_adapter__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webrtc_adapter__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _client_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./client.js */ "./src/js/conference/client.js");
-/*
- *  Copyright (c) 2021 Peter Christensen. All Rights Reserved.
- *  CC BY-NC-ND 4.0.
- */
-
-
-
-document.debugLogEnabled = true;
-document.infoLogEnabled = true;
-
-if (webrtc_adapter__WEBPACK_IMPORTED_MODULE_0___default.a.browserDetails.browser.startsWith("Not")) {
-  alert("Your browser is not supported.");
-} else {
-  window.addEventListener('load', function () {
-    document.client = new _client_js__WEBPACK_IMPORTED_MODULE_1__["default"]();
-    document.client.open();
-  });
-  window.addEventListener('beforeunload', function (event) {
-    if (document.client.woot) {
-      event.preventDefault();
-      event.returnValue = '';
+    _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.info('channel', 'Adding track', track);
+    if (!this.audio.srcObject) {
+      this.audio.srcObject = new MediaStream();
     }
-  });
-  window.addEventListener('unload', function () {
-    document.client.close();
-  });
+    this.audio.srcObject.addTrack(track);
+    //this.audio.style.display = 'unset';
+  }
 }
 
 
@@ -272,12 +186,12 @@ if (webrtc_adapter__WEBPACK_IMPORTED_MODULE_0___default.a.browserDetails.browser
 /*!*******************************!*\
   !*** ./src/js/local-media.js ***!
   \*******************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return LocalMedia; });
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ LocalMedia)
+/* harmony export */ });
 /* harmony import */ var _logger_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./logger.js */ "./src/js/logger.js");
 /*
  * Copyright (c) 2020 Peter Christensen. All Rights Reserved.
@@ -297,7 +211,7 @@ class LocalMedia {
     this.onStartError = null;
   }
 
-  start() {
+  start(audio = true, video = false) {
     const onSuccess = (stream) => {
       if (!this.isStarting) {
 
@@ -331,14 +245,14 @@ class LocalMedia {
     }
     const onError = (error) => {
       this.isStarting = false;
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('media', error);
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.error('media', error);
       if (this.onStartError) {
         this.onStartError(error);
       }
     }
     if (!this.stream && !this.isStarting) {
       this.isStarting = true;
-      this._initStream(onSuccess, onError);
+      this._initStream(audio, video, onSuccess, onError);
     }
   }
 
@@ -348,28 +262,28 @@ class LocalMedia {
     this.stream = null;
   }
 
-  async _initStream(onSuccess, onError) {
+  async _initStream(audio, video, onSuccess, onError) {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       let hasAudio = false;
       let hasVideo = false;
       for (const device of devices) {
         if (device.kind.startsWith('audio')) {
-          _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('media', 'Found audio device');
+          _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('media', 'Found audio device');
           hasAudio = true;
         } else if (device.kind.startsWith('video')) {
-          _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('media', 'Found video device');
+          _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('media', 'Found video device');
           hasVideo = true;
         }
       }
-      if (!hasAudio) {
+      if (audio && !hasAudio) {
         throw new Error('No audio devices.');
       }
-      if (!hasVideo) {
+      if (video && !hasVideo) {
         throw new Error('No video devices.');
       }
-      const contraints = {audio: true, video: true};
-      const stream = await navigator.mediaDevices.getUserMedia(contraints);
+      const constraints = {audio, video};
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       if (this.onStart) {
         this.onStart(stream);
       }
@@ -383,7 +297,7 @@ class LocalMedia {
     if (stream) {
       for (const track of stream.getTracks()) {
         track.stop();
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('media', 'Stopped', track.kind, 'track');
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('media', 'Stopped', track.kind, 'track');
       }
       if (this.onStop) {
         this.onStop(stream);
@@ -399,11 +313,12 @@ class LocalMedia {
 /*!**************************!*\
   !*** ./src/js/logger.js ***!
   \**************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
 /*
  *  Copyright (c) 2020 Peter Christensen. All Rights Reserved.
  *  CC BY-NC-ND 4.0.
@@ -427,7 +342,7 @@ let logger = {
     console.error(_getPrefix(prefix), ...args);
   }
 }
-/* harmony default export */ __webpack_exports__["default"] = (logger);
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (logger);
 
 
 /***/ }),
@@ -436,12 +351,12 @@ let logger = {
 /*!********************************!*\
   !*** ./src/js/verto/client.js ***!
   \********************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return VertoClient; });
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ VertoClient)
+/* harmony export */ });
 /* harmony import */ var _socket_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./socket.js */ "./src/js/verto/socket.js");
 /* harmony import */ var _logger_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../logger.js */ "./src/js/logger.js");
 /*
@@ -475,8 +390,8 @@ class ResponseCallbacks {
 
 class VertoClient {
 
-  constructor() {
-    this.channelId = location.pathname.split('/').pop();
+  constructor(wssUrl, channelId) {
+    this.channelId = channelId;
     this.channelData = this._getChannelData();
     this.sessionData = null;
 
@@ -503,7 +418,7 @@ class VertoClient {
     this.onEvent = null;
 
     // Socket and event bindings
-    this.socket = new _socket_js__WEBPACK_IMPORTED_MODULE_0__["default"]();
+    this.socket = new _socket_js__WEBPACK_IMPORTED_MODULE_0__.default(wssUrl);
     this.socket.onOpen = this._onSocketOpen.bind(this);
     this.socket.onClose = this._onSocketClose.bind(this);
     this.socket.onMessage = this._onSocketMessage.bind(this);
@@ -535,7 +450,7 @@ class VertoClient {
     this.responseCallbacks[request.id] = new ResponseCallbacks(
       onSuccess, onError
     );
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Request', request);
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Request', request);
     this.socket.send(request);
   }
 
@@ -545,13 +460,13 @@ class VertoClient {
     let allowRetry = true;
     const onSuccess = (sessionData) => {
       if (sessionData.sessionId !== this._getSessionId()) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Bad sessionId', sessionData);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Bad sessionId', sessionData);
         this.close();
       } else if (!CONST.uuidRegExp.test(sessionData.clientId)) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Bad clientId', sessionData);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Bad clientId', sessionData);
         this.close();
       } else if (!CONST.uuidRegExp.test(sessionData.password)) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Bad password', sessionData);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Bad password', sessionData);
         this.close();
       } else {
         this.sessionData = sessionData;
@@ -563,11 +478,11 @@ class VertoClient {
         allowRetry = false; // allow one retry with new sessionId on 404
         this.getSessionData(this._getSessionId(true), onSuccess, onError);
       } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Session data error', error);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Session data error', error);
         this.close();
       }
     }
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Socket open');
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Socket open');
     this._resetClientState();
     this.getSessionData(this._getSessionId(), onSuccess, onError);
     if (this.onOpen) {
@@ -576,7 +491,7 @@ class VertoClient {
   }
 
   _onSocketClose() {
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Socket closed');
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Socket closed');
     this._resetClientState();
     if (this.onClose) {
       this.onClose();
@@ -588,7 +503,7 @@ class VertoClient {
     try {
       message = JSON.parse(event.data);
     } catch (error) {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Event data parse error', event, error);
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Event data parse error', event, error);
       return null;
     }
     if (this.responseCallbacks[message.id]) {
@@ -601,7 +516,7 @@ class VertoClient {
   // Client state helpers
 
   _cleanResponseCallbacks() {
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Cleaning callbacks');
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Cleaning callbacks');
     const expired = [];
     const now = new Date();
     for (const requestId in this.responseCallbacks) {
@@ -612,7 +527,7 @@ class VertoClient {
     }
     for (const requestId of expired) {
       delete this.responseCallbacks[requestId];
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Deleted callback', requestId);
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Deleted callback', requestId);
     }
   }
 
@@ -641,11 +556,11 @@ class VertoClient {
     if (value && value !== this.channelData[key]) {
       changed = true;
       this.channelData[key] = value;
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Set', key);
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Set', key);
     } else if (this.channelData[key] && !value) {
       changed = true;
       delete this.channelData[key];
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Unset', key);
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Unset', key);
     }
     if (changed) {
       localStorage.setItem(
@@ -677,19 +592,19 @@ class VertoClient {
       if (this.onPingError) {
         this.onPingError(message);
       } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Ping error', message);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Ping error', message);
       }
     }
     const onSuccess = () => {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Ping success');
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Ping success');
       if (this.onPing) {
         this.onPing();
       }
       const delay = this._pingInterval();
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', `Waiting ${delay} before next ping`);
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', `Waiting ${delay} before next ping`);
       this.pingTimer = setTimeout(this._ping.bind(this), delay);
     }
-    _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Ping');
+    _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Ping');
     this._cleanResponseCallbacks();
     this.sendRequest('echo', {}, onSuccess, onError);
   }
@@ -701,11 +616,11 @@ class VertoClient {
     this.isAuthing = true;
     this.isAuthed = false;
     const onSuccess = () => {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Logged in');
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Logged in');
       this.isAuthing = false;
       this.isAuthed = true;
       const delay = this._pingInterval();
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', `Waiting ${delay} before ping`);
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', `Waiting ${delay} before ping`);
       this.pingTimer = setTimeout(this._ping.bind(this), delay);
       if (this.onLogin) {
         this.onLogin();
@@ -720,7 +635,7 @@ class VertoClient {
       if (this.onLoginError) {
         this.onLoginError(event.error.message);
       } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Login failed', event);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Login failed', event);
       }
     };
     this.sendRequest('login', {
@@ -733,7 +648,7 @@ class VertoClient {
 
   _handleResponse(message) {
     if (message.result) {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Response', message);
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Response', message);
       const onSuccess = this.responseCallbacks[message.id].onSuccess;
       if (onSuccess) {
         onSuccess(message);
@@ -742,17 +657,17 @@ class VertoClient {
       if (message.error) {
         const code = parseInt(message.error.code);
         if (code === CONST.authRequired) {
-          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Response auth required', message);
+          _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Response auth required', message);
           this._login();
         } else {
-          _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Response error', message);
+          _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Response error', message);
           const onError = this.responseCallbacks[message.id].onError;
           if (onError) {
             onError(message);
           }
         }
       } else {
-        _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].error('client', 'Response unhandled', message);
+        _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.error('client', 'Response unhandled', message);
       }
     }
     delete this.responseCallbacks[message.id];
@@ -760,12 +675,13 @@ class VertoClient {
 
   _handleEvent(event) {
     if (event.method === 'verto.punt') {
-      _logger_js__WEBPACK_IMPORTED_MODULE_1__["default"].debug('client', 'Punt');
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Punt');
       this.close();
       if (this.onPunt) {
         this.onPunt();
       }
     } else {
+      _logger_js__WEBPACK_IMPORTED_MODULE_1__.default.debug('client', 'Event', event);
       if (this.onEvent) {
         this.onEvent(event);
       }
@@ -780,12 +696,12 @@ class VertoClient {
 /*!******************************!*\
   !*** ./src/js/verto/peer.js ***!
   \******************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return VertoPeer; });
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ VertoPeer)
+/* harmony export */ });
 /* harmony import */ var _logger_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../logger.js */ "./src/js/logger.js");
 /*
  * Copyright (c) 2020 Peter Christensen. All Rights Reserved.
@@ -795,9 +711,10 @@ __webpack_require__.r(__webpack_exports__);
 
 class VertoPeer {
 
-  constructor() {
+  constructor(stunUrl, isPolite) {
+    this.stunUrl = stunUrl;
+    this.isPolite = isPolite;
     this.pc = null;
-    this.isPolite = false;
     this.isOffering = false;
     this.isIgnoringOffers = false;
 
@@ -811,10 +728,9 @@ class VertoPeer {
     this.onRemoteTrack = null;
   }
 
-  connect(isPolite) {
+  init() {
     if (!this.pc) {
-      this.pc = this._getConnection();
-      this.isPolite = isPolite;
+      this.pc = this._newConnection();
       this.isOffering = false;
       this.isIgnoringOffers = false;
     }
@@ -829,25 +745,21 @@ class VertoPeer {
 
   addTracks(stream) {
     for (const track of stream.getTracks()) {
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Sending', track.kind);
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Sending', track.kind);
       this.pc.addTrack(track, stream);
     }
   }
 
-  _getConnection() {
+  _newConnection() {
     const config = {
-      iceServers: [
-        {
-          urls: `stun:${location.host}:${document.getElementById('stun-port').value}`
-        }
-      ],
+      iceServers: [{urls: this.stunUrl}],
       bundlePolicy: 'max-compat',
       sdpSemantics: 'plan-b',
     }
     const pc = new RTCPeerConnection(config);
     pc.ontrack = (event) => {
       if (event.track) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Receiving media', event.track);
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Receiving media', event.track);
         if (this.onRemoteTrack) {
           this.onRemoteTrack(event.track);
         }
@@ -856,7 +768,7 @@ class VertoPeer {
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         const candidate = event.candidate.toJSON();
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Offering candidate', candidate)
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Offering candidate', candidate)
         if (this.onIceData) {
           this.onIceData(candidate);
         }
@@ -865,7 +777,7 @@ class VertoPeer {
     pc.onicegatheringstatechange = async () => {
       if (pc.iceGatheringState === 'complete' && pc.localDescription) {
         const sdp = pc.localDescription.toJSON();
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Ready', sdp)
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Bundle ready', sdp)
         if (this.onBundleReady) {
           this.onBundleReady(sdp.sdp);
         }
@@ -873,17 +785,17 @@ class VertoPeer {
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'connected') {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Connected');
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Connected');
         if (this.onConnected) {
           this.onConnected();
         }
       } else if (pc.connectionState === 'closed') {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Closed');
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Closed');
         if (this.onClosed) {
           this.onClosed();
         }
       } else if (pc.connectionState === 'failed') {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Failed');
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Failed');
         if (this.onFailed) {
           this.onFailed();
         }
@@ -894,19 +806,19 @@ class VertoPeer {
         this.isOffering = true;
         const offer = await pc.createOffer();
         if (pc.signalingState !== 'stable') {
-          _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Abandoned offer');
+          _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Abandoned offer');
           return;
         }
         await pc.setLocalDescription(offer);
         if (pc.localDescription) {
           const sdp = pc.localDescription.toJSON();
-          _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('peer', 'Offering', sdp)
+          _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Offering', sdp)
           if (this.onSdpOffer) {
             this.onSdpOffer(sdp);
           }
         }
       } catch (error) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('rtp', 'Negotiation error', error);
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.error('rtp', 'Negotiation error', error);
       } finally {
         this.isOffering = false;
       }
@@ -921,7 +833,7 @@ class VertoPeer {
       await this.pc.addIceCandidate(candidate);
     } catch (error) {
       if (!this.isIgnoringOffers) {
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('Received bad ICE data', candidate);
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.error('Received bad ICE data', candidate);
       }
     }
   }
@@ -934,25 +846,25 @@ class VertoPeer {
     );
     this.isIgnoringOffers = !this.isPolite && isOfferCollision;
     if (this.isIgnoringOffers) {
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('rpt', 'Ignored offer', sdp);
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Ignored offer', sdp);
       return;
     }
     if (isOfferCollision) {
       await Promise.all([
         this.pc.setLocalDescription({type: "rollback"}).catch((error) => {
-          _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('rtp', 'Rollback error', error);
+          _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.error('rtp', 'Rollback error', error);
         }),
         this.pc.setRemoteDescription(sdp)
       ]);
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('rtp', 'Rolled back offer');
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('rtp', 'Rolled back offer');
     } else {
       await this.pc.setRemoteDescription(sdp);
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('rpt', 'Accepted offer', sdp);
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Accepted offer', sdp);
     }
     if (sdp.type === 'offer') {
       await this.pc.setLocalDescription(await this.pc.createAnswer());
       const sdp = this.pc.localDescription.toJSON();
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('rpt', 'Sending answer', sdp);
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('peer', 'Sending answer', sdp);
       if (onAnswer) {
         onAnswer(sdp);
       }
@@ -967,12 +879,12 @@ class VertoPeer {
 /*!********************************!*\
   !*** ./src/js/verto/socket.js ***!
   \********************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return VertoSocket; });
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ VertoSocket)
+/* harmony export */ });
 /* harmony import */ var _logger_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../logger.js */ "./src/js/logger.js");
 /*
  *  Copyright (c) 2020 Peter Christensen. All Rights Reserved.
@@ -982,7 +894,8 @@ __webpack_require__.r(__webpack_exports__);
 
 class VertoSocket {
 
-  constructor() {
+  constructor(wssUrl) {
+    this.wssUrl = wssUrl;
     this.socket = null;
     this.isOpening = false;
     this.isHalted = true;
@@ -1022,7 +935,7 @@ class VertoSocket {
     this.isOpening = true;
     this.isHalted = false;
     clearTimeout(this.retryTimer);
-    const socket = new WebSocket(`wss://${location.host}/verto`);
+    const socket = new WebSocket(this.wssUrl);
     socket.onopen = () => {
       if (this.isOpening) {
         this.isOpening = false;
@@ -1041,7 +954,7 @@ class VertoSocket {
       }
       if (!this.isHalted) {
         const delay = this._retryInterval();
-        _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].debug('socket', `Waiting ${delay} after ${this.retryCount} tries`);
+        _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.debug('socket', `Waiting ${delay} after ${this.retryCount} tries`);
         this.retryTimer = setTimeout(() => {
           this.retryCount += 1;
           this.open();
@@ -1069,7 +982,7 @@ class VertoSocket {
     if (this.socket && this.socket.readyState === 1) {
       this.socket.send(JSON.stringify(message));
     } else {
-      _logger_js__WEBPACK_IMPORTED_MODULE_0__["default"].error('socket', 'Error sending', message);
+      _logger_js__WEBPACK_IMPORTED_MODULE_0__.default.error('socket', 'Error sending', message);
     }
   }
 }
@@ -1081,11 +994,119 @@ class VertoSocket {
 /*!**************************!*\
   !*** external "adapter" ***!
   \**************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+/***/ ((module) => {
 
 module.exports = adapter;
 
 /***/ })
 
-/******/ });
+/******/ 	});
+/************************************************************************/
+/******/ 	// The module cache
+/******/ 	var __webpack_module_cache__ = {};
+/******/ 	
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/ 		// Check if module is in cache
+/******/ 		var cachedModule = __webpack_module_cache__[moduleId];
+/******/ 		if (cachedModule !== undefined) {
+/******/ 			return cachedModule.exports;
+/******/ 		}
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = __webpack_module_cache__[moduleId] = {
+/******/ 			// no module.id needed
+/******/ 			// no module.loaded needed
+/******/ 			exports: {}
+/******/ 		};
+/******/ 	
+/******/ 		// Execute the module function
+/******/ 		__webpack_modules__[moduleId](module, module.exports, __webpack_require__);
+/******/ 	
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
+/******/ 	}
+/******/ 	
+/************************************************************************/
+/******/ 	/* webpack/runtime/compat get default export */
+/******/ 	(() => {
+/******/ 		// getDefaultExport function for compatibility with non-harmony modules
+/******/ 		__webpack_require__.n = (module) => {
+/******/ 			var getter = module && module.__esModule ?
+/******/ 				() => (module['default']) :
+/******/ 				() => (module);
+/******/ 			__webpack_require__.d(getter, { a: getter });
+/******/ 			return getter;
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/define property getters */
+/******/ 	(() => {
+/******/ 		// define getter functions for harmony exports
+/******/ 		__webpack_require__.d = (exports, definition) => {
+/******/ 			for(var key in definition) {
+/******/ 				if(__webpack_require__.o(definition, key) && !__webpack_require__.o(exports, key)) {
+/******/ 					Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 				}
+/******/ 			}
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/hasOwnProperty shorthand */
+/******/ 	(() => {
+/******/ 		__webpack_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	(() => {
+/******/ 		// define __esModule on exports
+/******/ 		__webpack_require__.r = (exports) => {
+/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 			}
+/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/************************************************************************/
+var __webpack_exports__ = {};
+// This entry need to be wrapped in an IIFE because it need to be isolated against other modules in the chunk.
+(() => {
+/*!********************************!*\
+  !*** ./src/js/client/index.js ***!
+  \********************************/
+__webpack_require__.r(__webpack_exports__);
+/* harmony import */ var webrtc_adapter__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webrtc-adapter */ "webrtc-adapter");
+/* harmony import */ var webrtc_adapter__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webrtc_adapter__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _client_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./client.js */ "./src/js/client/client.js");
+/*
+ *  Copyright (c) 2021 Peter Christensen. All Rights Reserved.
+ *  CC BY-NC-ND 4.0.
+ */
+
+
+
+document.debugLogEnabled = true;
+document.infoLogEnabled = true;
+
+if (webrtc_adapter__WEBPACK_IMPORTED_MODULE_0___default().browserDetails.browser.startsWith("Not")) {
+  alert("Your browser is not supported.");
+} else {
+  window.addEventListener('load', function () {
+    document.client = new _client_js__WEBPACK_IMPORTED_MODULE_1__.default();
+    document.client.open();
+  });
+  window.addEventListener('beforeunload', function (event) {
+    if (document.client && document.client.connected) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  });
+  window.addEventListener('unload', function () {
+    document.client.close();
+  });
+}
+
+})();
+
+/******/ })()
+;
