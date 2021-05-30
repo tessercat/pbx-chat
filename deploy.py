@@ -12,12 +12,13 @@ CLIENT_CSS = os.path.join(DIST, 'css', 'client')
 CLIENT_JS = os.path.join(DIST, 'js')
 
 # To these directories.
+APP = 'intercom'
 STATIC = os.path.join(PBX, 'static')
 PROJECT = os.path.join(PBX, 'web')
 APP_COMMON = os.path.join(PROJECT, 'common', 'static', 'common')
-APP_CHANNEL = os.path.join(PROJECT, 'action', 'static', 'action')
+APP_CHANNEL = os.path.join(PROJECT, APP, 'static', APP)
 PROJECT_COMMON = os.path.join(PROJECT, 'static', 'common')
-PROJECT_CHANNEL = os.path.join(PROJECT, 'static', 'action')
+PROJECT_CHANNEL = os.path.join(PROJECT, 'static', APP)
 
 
 def clear(dst):
@@ -59,7 +60,7 @@ def client_css():
     """ Clear and copy client css dist files. """
     app_css = os.path.join(APP_CHANNEL, 'css')
     project_css = os.path.join(PROJECT_CHANNEL, 'css')
-    static_css = os.path.join(STATIC, 'action', 'css')
+    static_css = os.path.join(STATIC, APP, 'css')
     clear(app_css)
     clear(project_css)
     clear(static_css)
@@ -78,7 +79,7 @@ def client_js():
     """ Clear and copy client js dist files. """
     app_js = os.path.join(APP_CHANNEL, 'js')
     project_js = os.path.join(PROJECT_CHANNEL, 'js')
-    static_js = os.path.join(STATIC, 'action', 'js')
+    static_js = os.path.join(STATIC, APP, 'js')
     clear(app_js)
     clear(project_js)
     clear(static_js)
